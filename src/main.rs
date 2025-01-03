@@ -8,6 +8,7 @@ fn main() {
 struct Game {
     id: String,
     name: String,
+    dir: Option<String>,
     command: String,
 }
 
@@ -47,9 +48,18 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                 } else {
                     return Err(ParseError::MissingCommand(game_id.clone()));
                 };
+                let dir = if game_config.contains_key("dir") {
+                    match &game_config["dir"] {
+                        Value::String(d) => Some(d.to_string()),
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
                 let game = Game {
                     id: game_id.clone(),
                     name,
+                    dir,
                     command,
                 };
                 games.insert(game_id.clone(), game);
@@ -100,6 +110,17 @@ mod tests {
         let games = parse_config(config).expect("Bad config");
         if let Some(game) = games.find("morrowind") {
             assert_eq!(game.command, "openmw");
+        } else {
+            panic!("Game not found");
+        }
+    }
+
+    #[test]
+    fn test_parse_game_with_directory() {
+        let config = "[games]\n[games.quake]\nname = \"Quake\"\ndir = \"/home/test/Games/quake\"\ncmd=\"vkquake\"";
+        let games = parse_config(config).expect("Bad config");
+        if let Some(game) = games.find("quake") {
+            assert_eq!(game.dir.as_ref().unwrap(), "/home/test/Games/quake");
         } else {
             panic!("Game not found");
         }
