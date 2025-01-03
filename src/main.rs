@@ -8,6 +8,7 @@ fn main() {
 struct Game {
     id: String,
     name: String,
+    command: String,
 }
 
 impl Game {
@@ -36,14 +37,20 @@ fn parse_config(config_content: &str) -> Games {
     if let Value::Table(games_config) = &config["games"] {
         for (game_id, value) in games_config.iter() {
             if let Value::Table(game_config) = &value {
-                let game_name = if let Value::String(name) = &game_config["name"] {
-                    name.to_string()
+                let name = if let Value::String(game_name) = &game_config["name"] {
+                    game_name.to_string()
                 } else {
                     panic!("A 'name' is required for game: {}", game_id);
                 };
+                let command = if let Value::String(cmd) = &game_config["cmd"] {
+                    cmd.to_string()
+                } else {
+                    panic!("A 'cmd' is required");
+                };
                 let game = Game {
                     id: game_id.clone(),
-                    name: game_name,
+                    name,
+                    command,
                 };
                 games.insert(game_id.clone(), game);
             } else {
@@ -53,9 +60,7 @@ fn parse_config(config_content: &str) -> Games {
     } else {
         panic!("No 'games' table found");
     }
-    Games {
-        games,
-    }
+    Games { games }
 }
 
 #[cfg(test)]
@@ -76,6 +81,17 @@ mod tests {
         if let Some(game) = games.find("morrowind") {
             let s = game.format();
             assert_eq!(s, "morrowind");
+        } else {
+            panic!("Game not found");
+        }
+    }
+
+    #[test]
+    fn test_parse_game() {
+        let config = "[games]\n[games.morrowind]\nname = \"Morrowind\"\ncmd = \"openmw\"";
+        let games = parse_config(config);
+        if let Some(game) = games.find("morrowind") {
+            assert_eq!(game.command, "openmw");
         } else {
             panic!("Game not found");
         }
