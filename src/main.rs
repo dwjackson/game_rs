@@ -263,6 +263,23 @@ mod tests {
     fn test_scummvm_game() {
         let config = "[games]\n[games.atlantis]\nname = \"Indiana Jones and the Fate of Atlantis\"\nscummvm_id = \"atlantis\"";
         let games = parse_config(config).expect("Bad config");
-        assert!(games.find("atlantis").is_some());
+        let game = games.find("atlantis").unwrap();
+        assert_eq!(game.command, "scummvm atlantis");
+    }
+
+    #[test]
+    fn test_wine_game() {
+        let config = "[games]\n[games.bg3]\nname = \"Baldur's Gate 3\"\ndir_prefix = \"wine_gog_dir\"\ndir=\"Baldur's Gate 3\"\nwine_exe = \"bg3.exe\"";
+        let games = parse_config(config).expect("Bad config");
+        let game = games.find("bg3").unwrap();
+        assert_eq!(game.command, "mangohud wine bg3.exe");
+    }
+
+    #[test]
+    fn test_dosbox_game() {
+        let config = "[games]\n[games.sc2k]\nname = \"SimCity 2000\"\ndosbox_config = \"sc2k.conf\"";
+        let games = parse_config(config).expect("Bad config");
+        let game = games.find("sc2k").unwrap();
+        assert_eq!(game.command, "dosbox -conf sc2k.conf");
     }
 }
