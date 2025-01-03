@@ -135,7 +135,7 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                 } else if let Some(Value::String(dosbox_conf_file)) =
                     game_config.get("dosbox_config")
                 {
-                    format!("dosbox -c {}", dosbox_conf_file)
+                    format!("dosbox -conf {}", dosbox_conf_file)
                 } else {
                     match game_config.get("cmd") {
                         Some(Value::String(cmd)) => cmd.to_string(),
