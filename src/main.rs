@@ -23,6 +23,7 @@ fn main() {
                     "list" => {
                         command_list(&games);
                     }
+                    "play" => command_play(&games, &args[2..]),
                     _ => println!("Unrecognized command: {}", cmd),
                 }
             }
@@ -37,6 +38,19 @@ fn command_list(games: &Games) {
     for game_id in game_ids.iter() {
         let game = games.find(game_id).unwrap();
         println!("{}", game.format());
+    }
+}
+
+fn command_play(games: &Games, args: &[String]) {
+    if args.len() < 1 {
+        panic!("A game_id is required");
+    }
+    let game_id = &args[0];
+    match games.find(game_id) {
+        Some(game) => {
+            game.run();
+        }
+        None => panic!("No such game: {}", game_id),
     }
 }
 
