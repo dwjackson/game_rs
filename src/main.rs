@@ -28,7 +28,12 @@ fn main() {
                 }
             }
         }
-        Err(e) => panic!("{:?}", e),
+        Err(e) => match e {
+            ParseError::MissingName(id) => println!("Game missing name: {}", id),
+            ParseError::MissingCommand(id) => println!("Game missing cmd: {}", id),
+            ParseError::GameNotTable => println!("The 'game' key must correspond to a table"),
+            ParseError::MissingGameTable => println!("A 'game' table is required'"),
+        },
     }
 }
 
@@ -42,7 +47,7 @@ fn command_list(games: &Games) {
 }
 
 fn command_play(games: &Games, args: &[String]) {
-    if args.len() < 1 {
+    if args.is_empty() {
         panic!("A game_id is required");
     }
     let game_id = &args[0];
@@ -75,7 +80,7 @@ impl Game {
             }
         }
         let command_parts: Vec<&str> = self.command.split_whitespace().collect();
-        let mut command = Command::new(&command_parts[0]);
+        let mut command = Command::new(command_parts[0]);
         command.args(&command_parts[1..]);
         for (k, v) in self.env.iter() {
             command.env(k, v);
@@ -89,10 +94,6 @@ struct Games {
 }
 
 impl Games {
-    fn exists(&self, id: &str) -> bool {
-        self.games.contains_key(id)
-    }
-
     fn find(&self, id: &str) -> Option<&Game> {
         self.games.get(id)
     }
@@ -199,7 +200,7 @@ mod tests {
     fn test_game_exists() {
         let config = "[games]\n[games.morrowind]\nname = \"Morrowind\"\ncmd = \"openmw\"";
         let games = parse_config(config).expect("Bad config");
-        assert!(games.exists("morrowind"));
+        assert!(games.find("morrowind").is_some());
     }
 
     #[test]
@@ -262,6 +263,6 @@ mod tests {
     fn test_scummvm_game() {
         let config = "[games]\n[games.atlantis]\nname = \"Indiana Jones and the Fate of Atlantis\"\nscummvm_id = \"atlantis\"";
         let games = parse_config(config).expect("Bad config");
-        assert!(games.exists("atlantis"));
+        assert!(games.find("atlantis").is_some());
     }
 }
