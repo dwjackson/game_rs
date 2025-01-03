@@ -87,6 +87,8 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                 };
                 let command = if let Some(Value::String(scummvm_id)) = game_config.get("scummvm_id") {
                     format!("scummvm {}", scummvm_id)
+                } else if let Some(Value::String(wine_exe)) = game_config.get("wine_exe") {
+                    format!("mangohud wine {}", wine_exe)
                 } else {
                     match game_config.get("cmd") {
                         Some(Value::String(cmd)) => cmd.to_string(),
