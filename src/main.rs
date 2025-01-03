@@ -1,7 +1,11 @@
 use std::collections::HashMap;
+use std::env;
+use std::path::Path;
+use std::process::Command;
 use toml::{Table, Value};
 
 fn main() {
+    // TODO
     println!("Hello, world!");
 }
 
@@ -15,6 +19,18 @@ struct Game {
 impl Game {
     fn format(&self) -> String {
         format!("{} - {}", self.id, self.name)
+    }
+
+    fn run(&self) {
+        if let Some(dir) = &self.dir {
+            let path = Path::new(dir);
+            if let Err(e) = env::set_current_dir(path) {
+                panic!("Could not change directory: {:?}", e);
+            }
+        }
+        Command::new(&self.command)
+            .status()
+            .expect("Failed to execute game");
     }
 }
 
