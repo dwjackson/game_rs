@@ -3,10 +3,19 @@ use std::env;
 use std::path::Path;
 use std::process::Command;
 use toml::{Table, Value};
+use homedir::my_home;
+use std::fs;
+
+const CONFIG_FILE_NAME: &str = "games.toml";
 
 fn main() {
-    // TODO
-    println!("Hello, world!");
+    let home_dir = my_home().expect("No home directory found").unwrap();
+    let config_path = Path::new(&home_dir).join(CONFIG_FILE_NAME);
+    let config_contents = fs::read_to_string(&config_path).expect("No games.toml config found");
+    match parse_config(&config_contents) {
+        Ok(games) => (),
+        Err(e) => panic!("{:?}", e),
+    }
 }
 
 struct Game {
@@ -76,10 +85,13 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                 } else {
                     return Err(ParseError::MissingName(game_id.clone()));
                 };
-                let command = if let Value::String(cmd) = &game_config["cmd"] {
-                    cmd.to_string()
+                let command = if let Some(Value::String(scummvm_id)) = game_config.get("scummvm_id") {
+                    format!("scummvm {}", scummvm_id)
                 } else {
-                    return Err(ParseError::MissingCommand(game_id.clone()));
+                    match game_config.get("cmd") {
+                        Some(Value::String(cmd)) => cmd.to_string(),
+                        _ => return Err(ParseError::MissingCommand(game_id.clone())),
+                    }
                 };
                 let dir_prefix = game_config.get_str("dir_prefix");
                 let dir_prefix = directories.get_str(dir_prefix);
@@ -183,5 +195,12 @@ mod tests {
         } else {
             panic!("Game not found");
         }
+    }
+
+    #[test]
+    fn test_scummvm_game() {
+        let config = "[games]\n[games.atlantis]\nname = \"Indiana Jones and the Fate of Atlantis\"\nscummvm_id = \"atlantis\"";
+        let games = parse_config(config).expect("Bad config");
+        assert!(games.exists("atlantis"));
     }
 }
