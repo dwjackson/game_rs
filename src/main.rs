@@ -13,7 +13,25 @@ fn main() {
     let config_path = Path::new(&home_dir).join(CONFIG_FILE_NAME);
     let config_contents = fs::read_to_string(&config_path).expect("No games.toml config found");
     match parse_config(&config_contents) {
-        Ok(games) => (),
+        Ok(games) => {
+            let args: Vec<String> = env::args().collect();
+            if args.len() < 2 {
+                println!("USAGE: games [COMMAND]");
+            } else {
+                let cmd = &args[1];
+                match cmd.as_str() {
+                    "list" => {
+                        let mut game_ids: Vec<&String> = games.games.keys().collect();
+                        game_ids.sort();
+                        for game_id in game_ids.iter() {
+                            let game = games.find(game_id).unwrap();
+                            println!("{}", game.format());
+                        }
+                    }
+                    _ => println!("Unrecognized command: {}", cmd),
+                }
+            }
+        },
         Err(e) => panic!("{:?}", e),
     }
 }
