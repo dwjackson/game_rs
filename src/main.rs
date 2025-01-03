@@ -131,7 +131,7 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                 {
                     format!("scummvm {}", scummvm_id)
                 } else if let Some(Value::String(wine_exe)) = game_config.get("wine_exe") {
-                    format!("mangohud wine {}", wine_exe)
+                    format!("wine {}", wine_exe)
                 } else if let Some(Value::String(dosbox_conf_file)) =
                     game_config.get("dosbox_config")
                 {
@@ -162,6 +162,18 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                     .to_str()
                     .unwrap()
                     .to_string();
+                let use_mangohud = match game_config.get("use_mangohud") {
+                    Some(Value::Boolean(b)) => *b,
+                    _ => command.starts_with("wine"),
+                };
+                let command = if use_mangohud {
+                    let mut c = "mangohud".to_string();
+                    c.push(' ');
+                    c.push_str(&command);
+                    c
+                } else {
+                    command
+                };
                 let game = Game {
                     id: game_id.clone(),
                     name,
@@ -281,5 +293,21 @@ mod tests {
         let games = parse_config(config).expect("Bad config");
         let game = games.find("sc2k").unwrap();
         assert_eq!(game.command, "dosbox -conf sc2k.conf");
+    }
+
+    #[test]
+    fn test_wine_game_without_mangohud() {
+        let config = "
+        [games]
+        [games.bg3]
+        name = \"Baldur's Gate 3\"
+        dir_prefix = \"wine_gog_dir\"
+        dir=\"Baldur's Gate 3\"
+        wine_exe = \"bg3.exe\"
+        use_mangohud = false
+        ";
+        let games = parse_config(config).expect("Bad config");
+        let game = games.find("bg3").unwrap();
+        assert_eq!(game.command, "wine bg3.exe");
     }
 }
