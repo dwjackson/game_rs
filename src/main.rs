@@ -289,7 +289,8 @@ mod tests {
 
     #[test]
     fn test_dosbox_game() {
-        let config = "[games]\n[games.sc2k]\nname = \"SimCity 2000\"\ndosbox_config = \"sc2k.conf\"";
+        let config =
+            "[games]\n[games.sc2k]\nname = \"SimCity 2000\"\ndosbox_config = \"sc2k.conf\"";
         let games = parse_config(config).expect("Bad config");
         let game = games.find("sc2k").unwrap();
         assert_eq!(game.command, "dosbox -conf sc2k.conf");
