@@ -48,9 +48,26 @@ impl Games {
     }
 }
 
+trait GetStr {
+    fn get_str(&self, key: &str) -> &str;
+}
+
+impl GetStr for Table {
+    fn get_str(&self, key: &str) -> &str {
+        match self.get(key) {
+            Some(Value::String(s)) => s,
+            _ => "",
+        }
+    }
+}
+
 fn parse_config(config_content: &str) -> Result<Games, ParseError> {
     let mut games = HashMap::new();
     let config = config_content.parse::<Table>().unwrap();
+    let directories = match config.get("directories") {
+        Some(Value::Table(tbl)) => tbl,
+        _ => &Table::new(),
+    };
     if let Value::Table(games_config) = &config["games"] {
         for (game_id, value) in games_config.iter() {
             if let Value::Table(game_config) = &value {
@@ -64,18 +81,22 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                 } else {
                     return Err(ParseError::MissingCommand(game_id.clone()));
                 };
-                let dir = if game_config.contains_key("dir") {
-                    match &game_config["dir"] {
-                        Value::String(d) => Some(d.to_string()),
-                        _ => None,
-                    }
-                } else {
-                    None
-                };
+                let dir_prefix = game_config.get_str("dir_prefix");
+                let dir_prefix = directories.get_str(dir_prefix);
+                let dir = game_config.get_str("dir");
+                let game_dir = Path::new(dir_prefix)
+                    .join(dir)
+                    .to_str()
+                    .unwrap()
+                    .to_string();
                 let game = Game {
                     id: game_id.clone(),
                     name,
-                    dir,
+                    dir: if !game_dir.is_empty() {
+                        Some(game_dir)
+                    } else {
+                        None
+                    },
                     command,
                 };
                 games.insert(game_id.clone(), game);
@@ -134,6 +155,28 @@ mod tests {
     #[test]
     fn test_parse_game_with_directory() {
         let config = "[games]\n[games.quake]\nname = \"Quake\"\ndir = \"/home/test/Games/quake\"\ncmd=\"vkquake\"";
+        let games = parse_config(config).expect("Bad config");
+        if let Some(game) = games.find("quake") {
+            assert_eq!(game.dir.as_ref().unwrap(), "/home/test/Games/quake");
+        } else {
+            panic!("Game not found");
+        }
+    }
+
+    #[test]
+    fn test_game_with_directory_prefix() {
+        let config = "
+        [directories]
+        games_dir=\"/home/test/Games\"
+
+        [games]
+        
+        [games.quake]
+        name = \"Quake\"
+        dir_prefix=\"games_dir\"
+        dir = \"quake\"
+        cmd=\"vkquake\"
+        ";
         let games = parse_config(config).expect("Bad config");
         if let Some(game) = games.find("quake") {
             assert_eq!(game.dir.as_ref().unwrap(), "/home/test/Games/quake");
