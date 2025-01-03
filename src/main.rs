@@ -31,7 +31,7 @@ impl Games {
     }
 }
 
-fn parse_config(config_content: &str) -> Games {
+fn parse_config(config_content: &str) -> Result<Games, ParseError> {
     let mut games = HashMap::new();
     let config = config_content.parse::<Table>().unwrap();
     if let Value::Table(games_config) = &config["games"] {
@@ -40,12 +40,12 @@ fn parse_config(config_content: &str) -> Games {
                 let name = if let Value::String(game_name) = &game_config["name"] {
                     game_name.to_string()
                 } else {
-                    panic!("A 'name' is required for game: {}", game_id);
+                    return Err(ParseError::MissingName(game_id.clone()));
                 };
                 let command = if let Value::String(cmd) = &game_config["cmd"] {
                     cmd.to_string()
                 } else {
-                    panic!("A 'cmd' is required");
+                    return Err(ParseError::MissingCommand(game_id.clone()));
                 };
                 let game = Game {
                     id: game_id.clone(),
@@ -54,13 +54,21 @@ fn parse_config(config_content: &str) -> Games {
                 };
                 games.insert(game_id.clone(), game);
             } else {
-                panic!("Game was not a table: {}", game_id);
+                return Err(ParseError::GameNotTable);
             }
         }
     } else {
-        panic!("No 'games' table found");
+        return Err(ParseError::MissingGameTable);
     }
-    Games { games }
+    Ok(Games { games })
+}
+
+#[derive(Debug)]
+enum ParseError {
+    MissingName(String),
+    MissingCommand(String),
+    GameNotTable,
+    MissingGameTable,
 }
 
 #[cfg(test)]
@@ -70,14 +78,14 @@ mod tests {
     #[test]
     fn test_game_exists() {
         let config = "[games]\n[games.morrowind]\nname = \"Morrowind\"\ncmd = \"openmw\"";
-        let games = parse_config(config);
+        let games = parse_config(config).expect("Bad config");
         assert!(games.exists("morrowind"));
     }
 
     #[test]
     fn test_format_game() {
         let config = "[games]\n[games.morrowind]\nname = \"Morrowind\"\ncmd = \"openmw\"";
-        let games = parse_config(config);
+        let games = parse_config(config).expect("Bad config");
         if let Some(game) = games.find("morrowind") {
             let s = game.format();
             assert_eq!(s, "morrowind - Morrowind");
@@ -89,7 +97,7 @@ mod tests {
     #[test]
     fn test_parse_game() {
         let config = "[games]\n[games.morrowind]\nname = \"Morrowind\"\ncmd = \"openmw\"";
-        let games = parse_config(config);
+        let games = parse_config(config).expect("Bad config");
         if let Some(game) = games.find("morrowind") {
             assert_eq!(game.command, "openmw");
         } else {
