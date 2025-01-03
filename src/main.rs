@@ -21,18 +21,22 @@ fn main() {
                 let cmd = &args[1];
                 match cmd.as_str() {
                     "list" => {
-                        let mut game_ids: Vec<&String> = games.games.keys().collect();
-                        game_ids.sort();
-                        for game_id in game_ids.iter() {
-                            let game = games.find(game_id).unwrap();
-                            println!("{}", game.format());
-                        }
+                        command_list(&games);
                     }
                     _ => println!("Unrecognized command: {}", cmd),
                 }
             }
-        },
+        }
         Err(e) => panic!("{:?}", e),
+    }
+}
+
+fn command_list(games: &Games) {
+    let mut game_ids: Vec<&String> = games.games.keys().collect();
+    game_ids.sort();
+    for game_id in game_ids.iter() {
+        let game = games.find(game_id).unwrap();
+        println!("{}", game.format());
     }
 }
 
