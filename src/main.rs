@@ -7,6 +7,7 @@ fn main() {
 
 struct Game {
     id: String,
+    name: String,
 }
 
 impl Game {
@@ -35,8 +36,14 @@ fn parse_config(config_content: &str) -> Games {
     if let Value::Table(games_config) = &config["games"] {
         for (game_id, value) in games_config.iter() {
             if let Value::Table(game_config) = &value {
+                let game_name = if let Value::String(name) = &game_config["name"] {
+                    name.to_string()
+                } else {
+                    panic!("A 'name' is required for game: {}", game_id);
+                };
                 let game = Game {
                     id: game_id.clone(),
+                    name: game_name,
                 };
                 games.insert(game_id.clone(), game);
             } else {
@@ -57,14 +64,14 @@ mod tests {
 
     #[test]
     fn test_game_exists() {
-        let config = "[games]\n[games.morrowind]\ncmd = \"openmw\"";
+        let config = "[games]\n[games.morrowind]\nname = \"Morrowind\"\ncmd = \"openmw\"";
         let games = parse_config(config);
         assert!(games.exists("morrowind"));
     }
 
     #[test]
-    fn test_format_game_with_id_but_without_name() {
-        let config = "[games]\n[games.morrowind]\ncmd = \"openmw\"";
+    fn test_format_game() {
+        let config = "[games]\n[games.morrowind]\nname = \"Morrowind\"\ncmd = \"openmw\"";
         let games = parse_config(config);
         if let Some(game) = games.find("morrowind") {
             let s = game.format();
