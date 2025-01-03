@@ -59,6 +59,7 @@ struct Game {
     name: String,
     dir: Option<String>,
     command: String,
+    env: HashMap<String, String>,
 }
 
 impl Game {
@@ -74,10 +75,12 @@ impl Game {
             }
         }
         let command_parts: Vec<&str> = self.command.split_whitespace().collect();
-        Command::new(&command_parts[0])
-            .args(&command_parts[1..])
-            .status()
-            .expect("Failed to execute game");
+        let mut command = Command::new(&command_parts[0]);
+        command.args(&command_parts[1..]);
+        for (k, v) in self.env.iter() {
+            command.env(k, v);
+        }
+        command.status().expect("Failed to execute game");
     }
 }
 
@@ -141,6 +144,18 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                 let dir_prefix = game_config.get_str("dir_prefix");
                 let dir_prefix = directories.get_str(dir_prefix);
                 let dir = game_config.get_str("dir");
+                let env = match game_config.get("env") {
+                    Some(Value::Table(tbl)) => {
+                        let mut environment = HashMap::new();
+                        for (k, v) in tbl.iter() {
+                            if let Value::String(s) = v {
+                                environment.insert(k.clone(), s.as_str().to_string());
+                            }
+                        }
+                        environment
+                    }
+                    _ => HashMap::new(),
+                };
                 let game_dir = Path::new(dir_prefix)
                     .join(dir)
                     .to_str()
@@ -155,6 +170,7 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                         None
                     },
                     command,
+                    env,
                 };
                 games.insert(game_id.clone(), game);
             } else {
