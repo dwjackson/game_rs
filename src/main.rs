@@ -73,7 +73,9 @@ impl Game {
                 panic!("Could not change directory: {:?}", e);
             }
         }
-        Command::new(&self.command)
+        let command_parts: Vec<&str> = self.command.split_whitespace().collect();
+        Command::new(&command_parts[0])
+            .args(&command_parts[1..])
             .status()
             .expect("Failed to execute game");
     }
