@@ -13,7 +13,7 @@ struct Game {
 
 impl Game {
     fn format(&self) -> String {
-        self.id.to_string()
+        format!("{} - {}", self.id, self.name)
     }
 }
 
@@ -80,7 +80,7 @@ mod tests {
         let games = parse_config(config);
         if let Some(game) = games.find("morrowind") {
             let s = game.format();
-            assert_eq!(s, "morrowind");
+            assert_eq!(s, "morrowind - Morrowind");
         } else {
             panic!("Game not found");
         }
