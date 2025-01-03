@@ -1,10 +1,10 @@
+use homedir::my_home;
 use std::collections::HashMap;
 use std::env;
+use std::fs;
 use std::path::Path;
 use std::process::Command;
 use toml::{Table, Value};
-use homedir::my_home;
-use std::fs;
 
 const CONFIG_FILE_NAME: &str = "games.toml";
 
@@ -85,10 +85,15 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                 } else {
                     return Err(ParseError::MissingName(game_id.clone()));
                 };
-                let command = if let Some(Value::String(scummvm_id)) = game_config.get("scummvm_id") {
+                let command = if let Some(Value::String(scummvm_id)) = game_config.get("scummvm_id")
+                {
                     format!("scummvm {}", scummvm_id)
                 } else if let Some(Value::String(wine_exe)) = game_config.get("wine_exe") {
                     format!("mangohud wine {}", wine_exe)
+                } else if let Some(Value::String(dosbox_conf_file)) =
+                    game_config.get("dosbox_config")
+                {
+                    format!("dosbox -c {}", dosbox_conf_file)
                 } else {
                     match game_config.get("cmd") {
                         Some(Value::String(cmd)) => cmd.to_string(),
