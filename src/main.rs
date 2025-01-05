@@ -8,23 +8,23 @@ use toml::{Table, Value};
 
 const CONFIG_FILE_NAME: &str = "games.toml";
 
+type CommandHandler = fn(games: &Games, args: &[String]);
+
 fn main() {
-    let home_dir = my_home().expect("No home directory found").unwrap();
-    let config_path = Path::new(&home_dir).join(CONFIG_FILE_NAME);
-    let config_contents = fs::read_to_string(&config_path).expect("No games.toml config found");
+    let config_contents = read_config();
     match parse_config(&config_contents) {
         Ok(games) => {
             let args: Vec<String> = env::args().collect();
+            let commands = initialize_commands();
+
             if args.len() < 2 {
                 println!("USAGE: games [COMMAND]");
             } else {
-                let cmd = &args[1];
-                match cmd.as_str() {
-                    "list" => {
-                        command_list(&games);
-                    }
-                    "play" => command_play(&games, &args[2..]),
-                    _ => println!("Unrecognized command: {}", cmd),
+                let cmd = args[1].as_str();
+                if commands.contains_key(cmd) {
+                    commands[cmd](&games, &args[2..]);
+                } else {
+                    println!("Unrecognized command: {}", cmd);
                 }
             }
         }
@@ -37,7 +37,20 @@ fn main() {
     }
 }
 
-fn command_list(games: &Games) {
+fn read_config() -> String {
+    let home_dir = my_home().expect("No home directory found").unwrap();
+    let config_path = Path::new(&home_dir).join(CONFIG_FILE_NAME);
+    fs::read_to_string(&config_path).expect("No games.toml config found")
+}
+
+fn initialize_commands() -> HashMap<&'static str, CommandHandler> {
+    let mut commands: HashMap<&str, CommandHandler> = HashMap::new();
+    commands.insert("list", command_list);
+    commands.insert("play", command_play);
+    commands
+}
+
+fn command_list(games: &Games, _args: &[String]) {
     let mut game_ids: Vec<&String> = games.games.keys().collect();
     game_ids.sort();
     for game_id in game_ids.iter() {
