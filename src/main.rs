@@ -18,7 +18,7 @@ fn main() {
             let commands = initialize_commands();
 
             if args.len() < 2 {
-                println!("USAGE: games [COMMAND]");
+                println!("USAGE: game [COMMAND]");
             } else {
                 let cmd = args[1].as_str();
                 if commands.contains_key(cmd) {
