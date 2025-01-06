@@ -1,13 +1,12 @@
-# games: command-line game manager
+# game: command-line game manager
 
-The `games` executable is used to run games on Linux from the command line.
+The `game` executable is used to run games on Linux from the command line.
 
 I like running things from the command line, so this program is used to launch
 games from the command line. It's kind of like if Steam or Lutris were far more
 annoying to use. The games are manually configured via a TOML file in the
 user's home directory. Native, Wine, DOSBox, and ScummVM games can be launched
 via the `game` executable.
-
 
 ## Commands
 
