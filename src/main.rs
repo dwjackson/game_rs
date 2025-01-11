@@ -8,7 +8,7 @@ use toml::{Table, Value};
 
 const CONFIG_FILE_NAME: &str = "games.toml";
 
-type CommandHandler = fn(games: &Games, args: &[String]);
+type CommandHandler = for<'a> fn(games: &Games, args: &'a [String]) -> Result<(), GameError<'a>>;
 
 fn main() {
     let config_contents = read_config();
@@ -19,13 +19,19 @@ fn main() {
 
             if args.len() < 2 {
                 println!("USAGE: game [COMMAND]");
-            } else {
-                let cmd = args[1].as_str();
-                if commands.contains_key(cmd) {
-                    commands[cmd](&games, &args[2..]);
-                } else {
-                    println!("Unrecognized command: {}", cmd);
+                std::process::exit(1);
+            }
+            let cmd = args[1].as_str();
+            if !commands.contains_key(cmd) {
+                println!("Unrecognized command: {}", cmd);
+                std::process::exit(1);
+            }
+            if let Err(e) = commands[cmd](&games, &args[2..]) {
+                match e {
+                    GameError::NoGameId => println!("A game ID is required"),
+                    GameError::NoSuchGame(game_id) => println!("No such game: {}", game_id),
                 }
+                std::process::exit(1);
             }
         }
         Err(e) => match e {
@@ -50,26 +56,33 @@ fn initialize_commands() -> HashMap<&'static str, CommandHandler> {
     commands
 }
 
-fn command_list(games: &Games, _args: &[String]) {
+fn command_list<'a>(games: &Games, _args: &[String]) -> Result<(), GameError<'a>> {
     let mut game_ids: Vec<&String> = games.games.keys().collect();
     game_ids.sort();
     for game_id in game_ids.iter() {
         let game = games.find(game_id).unwrap();
         println!("{}", game.format());
     }
+    Ok(())
 }
 
-fn command_play(games: &Games, args: &[String]) {
+fn command_play<'a>(games: &Games, args: &'a [String]) -> Result<(), GameError<'a>> {
     if args.is_empty() {
-        panic!("A game_id is required");
+        return Err(GameError::NoGameId);
     }
     let game_id = &args[0];
     match games.find(game_id) {
         Some(game) => {
             game.run();
+            Ok(())
         }
-        None => panic!("No such game: {}", game_id),
+        None => Err(GameError::NoSuchGame(game_id)),
     }
+}
+
+enum GameError<'a> {
+    NoGameId,
+    NoSuchGame(&'a str),
 }
 
 struct Game {
