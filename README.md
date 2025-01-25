@@ -10,6 +10,7 @@ via the `game` executable.
 
 ## Commands
 
+* `help` - explain all commands
 * `list` - list all known games
 * `play [GAME_ID]` - play the game with the given ID
 

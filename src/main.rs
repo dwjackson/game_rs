@@ -6,9 +6,17 @@ use std::path::Path;
 use std::process::Command;
 use toml::{Table, Value};
 
+const USAGE: &str = "USAGE: game [COMMAND]";
 const CONFIG_FILE_NAME: &str = "games.toml";
 
 type CommandHandler = for<'a> fn(games: &Games, args: &'a [String]) -> Result<(), GameError<'a>>;
+
+struct GameCommand {
+    cmd: &'static str,
+    args: Vec<&'static str>,
+    exec: CommandHandler,
+    desc: &'static str,
+}
 
 fn main() {
     let config_contents = read_config();
@@ -18,7 +26,7 @@ fn main() {
             let commands = initialize_commands();
 
             if args.len() < 2 {
-                println!("USAGE: game [COMMAND]");
+                println!("{}", USAGE);
                 std::process::exit(1);
             }
             let cmd = args[1].as_str();
@@ -26,7 +34,9 @@ fn main() {
                 println!("Unrecognized command: {}", cmd);
                 std::process::exit(1);
             }
-            if let Err(e) = commands[cmd](&games, &args[2..]) {
+            let command = &commands[cmd];
+            let handle = command.exec;
+            if let Err(e) = handle(&games, &args[2..]) {
                 match e {
                     GameError::NoGameId => println!("A game ID is required"),
                     GameError::NoSuchGame(game_id) => println!("No such game: {}", game_id),
@@ -49,11 +59,51 @@ fn read_config() -> String {
     fs::read_to_string(&config_path).expect("No games.toml config found")
 }
 
-fn initialize_commands() -> HashMap<&'static str, CommandHandler> {
-    let mut commands: HashMap<&str, CommandHandler> = HashMap::new();
-    commands.insert("list", command_list);
-    commands.insert("play", command_play);
+fn initialize_commands() -> HashMap<&'static str, GameCommand> {
+    let cmds = vec![
+        GameCommand {
+            cmd: "help",
+            args: Vec::new(),
+            exec: command_help,
+            desc: "Explain the commands",
+        },
+        GameCommand {
+            cmd: "list",
+            args: Vec::new(),
+            exec: command_list,
+            desc: "List all known games in the format \"game_id - name\"",
+        },
+        GameCommand {
+            cmd: "play",
+            args: vec!["GAME_ID"],
+            exec: command_play,
+            desc: "Play a game, specified by its game ID",
+        },
+    ];
+    let mut commands: HashMap<&str, GameCommand> = HashMap::new();
+    for c in cmds.into_iter() {
+        commands.insert(c.cmd, c);
+    }
     commands
+}
+
+fn command_help<'a>(_games: &Games, _args: &[String]) -> Result<(), GameError<'a>> {
+    let commands_hash = initialize_commands();
+    let mut commands: Vec<&GameCommand> = commands_hash.values().collect();
+    commands.sort_by(|a, b| a.cmd.cmp(b.cmd));
+
+    println!("{}", USAGE);
+    println!();
+    println!("Commands: ");
+    for c in commands.iter() {
+        let args_str = if c.args.is_empty() {
+            String::new()
+        } else {
+            format!(" [{}]", c.args.join("|"))
+        };
+        println!("\t{}{} - {}", c.cmd, args_str, c.desc);
+    }
+    Ok(())
 }
 
 fn command_list<'a>(games: &Games, _args: &[String]) -> Result<(), GameError<'a>> {
