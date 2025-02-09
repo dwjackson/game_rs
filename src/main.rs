@@ -5,6 +5,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 use toml::{Table, Value};
+use shell_words;
 
 const USAGE: &str = "USAGE: game [COMMAND]";
 const CONFIG_FILE_NAME: &str = "games.toml";
@@ -163,8 +164,8 @@ impl Game {
         match command.status() {
             Ok(status) => {
                 if let Some(code) = status.code() {
-                    if code != 0 {
-                        panic!("Error executing game command: {:?}", command);
+                    if code == 1 {
+                        panic!("Error executing game command: {}, {:?}", code, command);
                     }
                 }
             }
@@ -228,7 +229,9 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                     ]
                 } else {
                     match game_config.get("cmd") {
-                        Some(Value::String(cmd)) => vec![cmd.to_string()],
+                        Some(Value::String(cmd)) => {
+                            shell_words::split(cmd).expect("Failed to parse shell command")
+                        }
                         _ => return Err(ParseError::MissingCommand(game_id.clone())),
                     }
                 };
@@ -401,5 +404,33 @@ mod tests {
         let games = parse_config(config).expect("Bad config");
         let game = games.find("bg3").unwrap();
         assert_eq!(game.command, vec!["wine", "bg3.exe"]);
+    }
+
+    #[test]
+    fn test_game_started_by_shell_script() {
+        let config = "
+        [games]
+        [games.test]
+        name = \"Test Game\"
+        dir_prefix = \"gog_dir\"
+        dir=\"Test Game\"
+        cmd = \"sh start.sh\"";
+        let games = parse_config(config).expect("Bad config");
+        let game = games.find("test").unwrap();
+        assert_eq!(game.command, vec!["sh", "start.sh"]);
+    }
+
+    #[test]
+    fn test_game_started_by_shell_script_with_spaces() {
+        let config = "
+        [games]
+        [games.test]
+        name = \"Test Game\"
+        dir_prefix = \"gog_dir\"
+        dir=\"Test Game\"
+        cmd = \"sh 'start the game.sh'\"";
+        let games = parse_config(config).expect("Bad config");
+        let game = games.find("test").unwrap();
+        assert_eq!(game.command, vec!["sh", "start the game.sh"]);
     }
 }
