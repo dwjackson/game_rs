@@ -139,7 +139,7 @@ struct Game {
     id: String,
     name: String,
     dir: Option<String>,
-    command: String,
+    command: Vec<String>,
     env: HashMap<String, String>,
 }
 
@@ -155,13 +155,23 @@ impl Game {
                 panic!("Could not change directory: {:?}", e);
             }
         }
-        let command_parts: Vec<&str> = self.command.split_whitespace().collect();
-        let mut command = Command::new(command_parts[0]);
-        command.args(&command_parts[1..]);
+        let mut command = Command::new(&self.command[0]);
+        command.args(&self.command[1..]);
         for (k, v) in self.env.iter() {
             command.env(k, v);
         }
-        command.status().expect("Failed to execute game");
+        match command.status() {
+            Ok(status) => {
+                if let Some(code) = status.code() {
+                    if code != 0 {
+                        panic!("Error executing game command: {:?}", command);
+                    }
+                }
+            }
+            Err(_) => {
+                panic!("Failed to execute game");
+            }
+        }
     }
 }
 
@@ -205,16 +215,20 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                 };
                 let command = if let Some(Value::String(scummvm_id)) = game_config.get("scummvm_id")
                 {
-                    format!("scummvm {}", scummvm_id)
+                    vec!["scummvm".to_string(), scummvm_id.to_string()]
                 } else if let Some(Value::String(wine_exe)) = game_config.get("wine_exe") {
-                    format!("wine {}", wine_exe)
+                    vec!["wine".to_string(), wine_exe.to_string()]
                 } else if let Some(Value::String(dosbox_conf_file)) =
                     game_config.get("dosbox_config")
                 {
-                    format!("dosbox -conf {}", dosbox_conf_file)
+                    vec![
+                        "dosbox".to_string(),
+                        "-conf".to_string(),
+                        dosbox_conf_file.to_string(),
+                    ]
                 } else {
                     match game_config.get("cmd") {
-                        Some(Value::String(cmd)) => cmd.to_string(),
+                        Some(Value::String(cmd)) => vec![cmd.to_string()],
                         _ => return Err(ParseError::MissingCommand(game_id.clone())),
                     }
                 };
@@ -240,12 +254,13 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                     .to_string();
                 let use_mangohud = match game_config.get("use_mangohud") {
                     Some(Value::Boolean(b)) => *b,
-                    _ => command.starts_with("wine"),
+                    _ => command[0] == ("wine"),
                 };
                 let command = if use_mangohud {
-                    let mut c = "mangohud".to_string();
-                    c.push(' ');
-                    c.push_str(&command);
+                    let mut c = vec!["mangohud".to_string()];
+                    for x in command.iter() {
+                        c.push(x.clone());
+                    }
                     c
                 } else {
                     command
@@ -308,7 +323,7 @@ mod tests {
         let config = "[games]\n[games.morrowind]\nname = \"Morrowind\"\ncmd = \"openmw\"";
         let games = parse_config(config).expect("Bad config");
         if let Some(game) = games.find("morrowind") {
-            assert_eq!(game.command, "openmw");
+            assert_eq!(game.command, vec!["openmw"]);
         } else {
             panic!("Game not found");
         }
@@ -352,7 +367,7 @@ mod tests {
         let config = "[games]\n[games.atlantis]\nname = \"Indiana Jones and the Fate of Atlantis\"\nscummvm_id = \"atlantis\"";
         let games = parse_config(config).expect("Bad config");
         let game = games.find("atlantis").unwrap();
-        assert_eq!(game.command, "scummvm atlantis");
+        assert_eq!(game.command, vec!["scummvm", "atlantis"]);
     }
 
     #[test]
@@ -360,7 +375,7 @@ mod tests {
         let config = "[games]\n[games.bg3]\nname = \"Baldur's Gate 3\"\ndir_prefix = \"wine_gog_dir\"\ndir=\"Baldur's Gate 3\"\nwine_exe = \"bg3.exe\"";
         let games = parse_config(config).expect("Bad config");
         let game = games.find("bg3").unwrap();
-        assert_eq!(game.command, "mangohud wine bg3.exe");
+        assert_eq!(game.command, vec!["mangohud", "wine", "bg3.exe"]);
     }
 
     #[test]
@@ -369,7 +384,7 @@ mod tests {
             "[games]\n[games.sc2k]\nname = \"SimCity 2000\"\ndosbox_config = \"sc2k.conf\"";
         let games = parse_config(config).expect("Bad config");
         let game = games.find("sc2k").unwrap();
-        assert_eq!(game.command, "dosbox -conf sc2k.conf");
+        assert_eq!(game.command, vec!["dosbox", "-conf", "sc2k.conf"]);
     }
 
     #[test]
@@ -385,6 +400,6 @@ mod tests {
         ";
         let games = parse_config(config).expect("Bad config");
         let game = games.find("bg3").unwrap();
-        assert_eq!(game.command, "wine bg3.exe");
+        assert_eq!(game.command, vec!["wine", "bg3.exe"]);
     }
 }
