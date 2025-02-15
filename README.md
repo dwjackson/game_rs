@@ -12,7 +12,9 @@ via the `game` executable.
 
 * `help` - explain all commands
 * `list` - list all known games
+* `list [TAG]` - list all games having a given tag
 * `play [GAME_ID]` - play the game with the given ID
+* `tags` - list all tags
 
 ## Configuration
 
@@ -45,7 +47,8 @@ Known fields are as follows:
 variable that should be set before running the game
 * `prefix_dir` - the key of the entry in the `[directories]` table that is the
 parent directory of the `dir`
-* `scummvm_id` - The ScummVM target ID of the game to launch
+* `scummvm_id` - the ScummVM target ID of the game to launch
+* `tags` - a list of tags (strings) used when listing games
 * `wine_exe` - the name of the Windows executable for `wine` to execute
 
 _Technically_ all of these fields are optional, but at least one of `cmd`,

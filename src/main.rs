@@ -1,5 +1,5 @@
 use homedir::my_home;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -69,15 +69,21 @@ fn initialize_commands() -> HashMap<&'static str, GameCommand> {
         },
         GameCommand {
             cmd: "list",
-            args: Vec::new(),
+            args: vec!["TAG?"],
             exec: command_list,
-            desc: "List all known games in the format \"game_id - name\"",
+            desc: "List games in the format \"game_id - name\"",
         },
         GameCommand {
             cmd: "play",
             args: vec!["GAME_ID"],
             exec: command_play,
             desc: "Play a game, specified by its game ID",
+        },
+        GameCommand {
+            cmd: "tags",
+            args: Vec::new(),
+            exec: command_tags,
+            desc: "List all tags",
         },
     ];
     let mut commands: HashMap<&str, GameCommand> = HashMap::new();
@@ -106,12 +112,42 @@ fn command_help<'a>(_games: &Games, _args: &[String]) -> Result<(), GameError<'a
     Ok(())
 }
 
-fn command_list<'a>(games: &Games, _args: &[String]) -> Result<(), GameError<'a>> {
+fn command_list<'a>(games: &Games, args: &[String]) -> Result<(), GameError<'a>> {
     let mut game_ids: Vec<&String> = games.games.keys().collect();
     game_ids.sort();
-    for game_id in game_ids.iter() {
-        let game = games.find(game_id).unwrap();
-        println!("{}", game.format());
+
+    if !args.is_empty() {
+        let tag = &args[0];
+        // List all games having the given tag
+        for game_id in game_ids.iter() {
+            let game = games.find(game_id).unwrap();
+            if game.has_tag(tag) {
+                println!("{}", game.format());
+            }
+        }
+    } else {
+        for game_id in game_ids.iter() {
+            let game = games.find(game_id).unwrap();
+            println!("{}", game.format());
+        }
+    }
+    Ok(())
+}
+
+fn command_tags<'a>(games: &Games, _args: &[String]) -> Result<(), GameError<'a>> {
+    let game_ids: Vec<&String> = games.games.keys().collect();
+    let tags = game_ids
+        .iter()
+        .flat_map(|game_id| {
+            let game = games.find(game_id).unwrap();
+            game.tags.iter().cloned()
+        })
+        .collect::<HashSet<String>>();
+    let mut tags = tags.into_iter().collect::<Vec<String>>();
+    tags.sort();
+    let tags = tags;
+    for tag in tags.iter() {
+        println!("{}", tag);
     }
     Ok(())
 }
@@ -141,6 +177,7 @@ struct Game {
     dir: Option<String>,
     command: Vec<String>,
     env: HashMap<String, String>,
+    tags: Vec<String>,
 }
 
 impl Game {
@@ -172,6 +209,10 @@ impl Game {
                 panic!("Failed to execute game");
             }
         }
+    }
+
+    fn has_tag(&self, tag: &str) -> bool {
+        self.tags.iter().any(|t| t == tag)
     }
 }
 
@@ -267,6 +308,17 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                 } else {
                     command
                 };
+                let tags = if let Some(Value::Array(tags_array)) = game_config.get("tags") {
+                    tags_array
+                        .iter()
+                        .filter_map(|x| match x {
+                            Value::String(tag) => Some(tag.to_string()),
+                            _ => None,
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                };
                 let game = Game {
                     id: game_id.clone(),
                     name,
@@ -277,6 +329,7 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                     },
                     command,
                     env,
+                    tags,
                 };
                 games.insert(game_id.clone(), game);
             } else {
@@ -431,5 +484,22 @@ mod tests {
         let games = parse_config(config).expect("Bad config");
         let game = games.find("test").unwrap();
         assert_eq!(game.command, vec!["sh", "start the game.sh"]);
+    }
+
+    #[test]
+    fn test_tags() {
+        let config = "
+        [games]
+        [games.doom]
+        name = \"Doom\"
+        dir_prefix = \"games_dir\"
+        dir=\"Doom\"
+        cmd = \"dsda-doom -iwad DOOM.WAD\"
+        tags = [\"classic\", \"fps\"]";
+        let games = parse_config(config).expect("Bad config");
+        let game = games.find("doom").unwrap();
+        assert_eq!(game.tags, vec!["classic", "fps"]);
+        assert!(game.has_tag("fps"));
+        assert!(!game.has_tag("rpg"));
     }
 }
