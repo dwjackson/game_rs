@@ -19,7 +19,15 @@ struct GameCommand {
 }
 
 fn main() {
-    let config_contents = read_config();
+    let config_contents_result = read_config();
+    if let Err(_) = config_contents_result {
+        println!(
+            "Error: No {} config file found in home directory",
+            CONFIG_FILE_NAME
+        );
+        std::process::exit(1);
+    }
+    let config_contents = config_contents_result.unwrap();
     match parse_config(&config_contents) {
         Ok(games) => {
             let args: Vec<String> = env::args().collect();
@@ -53,10 +61,10 @@ fn main() {
     }
 }
 
-fn read_config() -> String {
+fn read_config() -> std::io::Result<String> {
     let home_dir = my_home().expect("No home directory found").unwrap();
     let config_path = Path::new(&home_dir).join(CONFIG_FILE_NAME);
-    fs::read_to_string(&config_path).expect("No games.toml config found")
+    fs::read_to_string(&config_path)
 }
 
 fn initialize_commands() -> HashMap<&'static str, GameCommand> {
