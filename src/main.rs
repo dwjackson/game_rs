@@ -297,7 +297,7 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                 let dir_prefix = game_config.get_str("dir_prefix");
                 let dir_prefix = directories.get_str(dir_prefix);
                 let dir = game_config.get_str("dir");
-                let env = match game_config.get("env") {
+                let mut env = match game_config.get("env") {
                     Some(Value::Table(tbl)) => {
                         let mut environment = HashMap::new();
                         for (k, v) in tbl.iter() {
@@ -318,10 +318,19 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                     Some(Value::Boolean(b)) => *b,
                     _ => command[0] == ("wine"),
                 };
+                let fps_limit = match game_config.get("fps_limit") {
+                    Some(Value::Integer(i)) => Some(i),
+                    _ => None,
+                };
+                if let Some(i) = fps_limit {
+                    let fps_limit_setting = format!("fps_limit={}", i);
+                    env.insert("MANGOHUD_CONFIG".to_string(), fps_limit_setting);
+                }
                 let command = if use_mangohud {
-                    let mut c = vec!["mangohud".to_string()];
-                    for x in command.iter() {
-                        c.push(x.clone());
+                    let mut c = Vec::new();
+                    c.push("mangohud".to_string());
+                    for x in command.into_iter() {
+                        c.push(x);
                     }
                     c
                 } else {
@@ -539,5 +548,23 @@ mod tests {
             game.command,
             vec!["wine", "Test Game.exe", "-opt1", "param1", "-opt2"]
         );
+    }
+
+    #[test]
+    fn test_wine_game_with_mangohud_fps_limit() {
+        let config = "
+        [games]
+        [games.test]
+        name = \"Test Game\"
+        dir_prefix = \"wine_gog_dir\"
+        dir=\"Test Game\"
+        fps_limit = 60
+        wine_exe = \"TestGame.exe\"";
+        let games = parse_config(config).expect("Bad config");
+        let game = games.find("test").unwrap();
+        match game.env.get("MANGOHUD_CONFIG") {
+            Some(s) => assert_eq!(s, "fps_limit=60"),
+            None => panic!("No mangohud FPS limit set"),
+        }
     }
 }

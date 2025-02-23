@@ -45,10 +45,12 @@ Known fields are as follows:
 * `dosbox_config` - the name of a DOSBox configuration file to use
 * `env` - a table where each key/value pair corresponds to an environment
 variable that should be set before running the game
+* `fps_limit` - set the mangohud FPS limit to given integer
 * `prefix_dir` - the key of the entry in the `[directories]` table that is the
 parent directory of the `dir`
 * `scummvm_id` - the ScummVM target ID of the game to launch
 * `tags` - a list of tags (strings) used when listing games
+* `use_mangohud` - boolean to control use of mangohud, true by default for wine
 * `wine_exe` - the name of the Windows executable for `wine` to execute
 
 _Technically_ all of these fields are optional, but at least one of `cmd`,
