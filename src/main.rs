@@ -20,7 +20,7 @@ struct GameCommand {
 
 fn main() {
     let config_contents_result = read_config();
-    if let Err(_) = config_contents_result {
+    if config_contents_result.is_err() {
         println!(
             "Error: No {} config file found in home directory",
             CONFIG_FILE_NAME
@@ -266,7 +266,18 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                 {
                     vec!["scummvm".to_string(), scummvm_id.to_string()]
                 } else if let Some(Value::String(wine_exe)) = game_config.get("wine_exe") {
-                    vec!["wine".to_string(), wine_exe.to_string()]
+                    let mut cmd_parts = Vec::new();
+                    cmd_parts.push("wine".to_string());
+                    cmd_parts.push(wine_exe.to_string());
+                    if let Some(Value::String(wine_args_string)) = game_config.get("wine_exe_args")
+                    {
+                        let wine_args = shell_words::split(wine_args_string)
+                            .expect("Failed to parse wine command");
+                        for arg in wine_args.into_iter() {
+                            cmd_parts.push(arg);
+                        }
+                    }
+                    cmd_parts
                 } else if let Some(Value::String(dosbox_conf_file)) =
                     game_config.get("dosbox_config")
                 {
@@ -509,5 +520,24 @@ mod tests {
         assert_eq!(game.tags, vec!["classic", "fps"]);
         assert!(game.has_tag("fps"));
         assert!(!game.has_tag("rpg"));
+    }
+
+    #[test]
+    fn test_wine_game_with_arguments() {
+        let config = "
+        [games]
+        [games.test]
+        name = \"Test Game\"
+        dir_prefix = \"wine_gog_dir\"
+        dir=\"Test Game\"
+        use_mangohud = false
+        wine_exe = \"Test Game.exe\"
+        wine_exe_args = \"-opt1 param1 -opt2\"";
+        let games = parse_config(config).expect("Bad config");
+        let game = games.find("test").unwrap();
+        assert_eq!(
+            game.command,
+            vec!["wine", "Test Game.exe", "-opt1", "param1", "-opt2"]
+        );
     }
 }
