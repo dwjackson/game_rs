@@ -9,7 +9,7 @@ use toml::{Table, Value};
 const USAGE: &str = "USAGE: game [COMMAND]";
 const CONFIG_FILE_NAME: &str = "games.toml";
 
-type CommandHandler = for<'a> fn(games: &Games, args: &'a [String]) -> Result<(), GameError<'a>>;
+type CommandHandler = for<'a> fn(games: &'a Games, args: &'a [String]) -> Result<(), GameError<'a>>;
 
 struct GameCommand {
     cmd: &'static str,
@@ -47,7 +47,12 @@ fn main() {
             if let Err(e) = handle(&games, &args[2..]) {
                 match e {
                     GameError::NoGameId => println!("A game ID is required"),
+                    GameError::CouldNotChangeDirectory(dir) => {
+                        println!("Could not change directory to: {}", dir)
+                    }
                     GameError::NoSuchGame(game_id) => println!("No such game: {}", game_id),
+                    GameError::CommandReturnedFailure(cmd) => println!("Command failed: {}", cmd),
+                    GameError::ExecutionFailed => println!("Could not execute game"),
                 }
                 std::process::exit(1);
             }
@@ -160,23 +165,23 @@ fn command_tags<'a>(games: &Games, _args: &[String]) -> Result<(), GameError<'a>
     Ok(())
 }
 
-fn command_play<'a>(games: &Games, args: &'a [String]) -> Result<(), GameError<'a>> {
+fn command_play<'a>(games: &'a Games, args: &'a [String]) -> Result<(), GameError<'a>> {
     if args.is_empty() {
         return Err(GameError::NoGameId);
     }
     let game_id = &args[0];
     match games.find(game_id) {
-        Some(game) => {
-            game.run();
-            Ok(())
-        }
+        Some(game) => game.run(),
         None => Err(GameError::NoSuchGame(game_id)),
     }
 }
 
 enum GameError<'a> {
     NoGameId,
+    CouldNotChangeDirectory(&'a str),
     NoSuchGame(&'a str),
+    CommandReturnedFailure(String),
+    ExecutionFailed,
 }
 
 struct Game {
@@ -193,11 +198,11 @@ impl Game {
         format!("{} - {}", self.id, self.name)
     }
 
-    fn run(&self) {
+    fn run(&self) -> Result<(), GameError> {
         if let Some(dir) = &self.dir {
             let path = Path::new(dir);
-            if let Err(e) = env::set_current_dir(path) {
-                panic!("Could not change directory: {:?}", e);
+            if env::set_current_dir(path).is_err() {
+                return Err(GameError::CouldNotChangeDirectory(dir));
             }
         }
         let mut command = Command::new(&self.command[0]);
@@ -209,14 +214,17 @@ impl Game {
             Ok(status) => {
                 if let Some(code) = status.code() {
                     if code == 1 {
-                        panic!("Error executing game command: {}, {:?}", code, command);
+                        let cmd = format!("{:?}", command);
+                        return Err(GameError::CommandReturnedFailure(cmd));
                     }
                 }
             }
             Err(_) => {
-                panic!("Failed to execute game");
+                return Err(GameError::ExecutionFailed);
             }
         }
+
+        Ok(())
     }
 
     fn has_tag(&self, tag: &str) -> bool {
