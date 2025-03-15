@@ -8,8 +8,16 @@ use toml::{Table, Value};
 
 const USAGE: &str = "USAGE: game [COMMAND]";
 const CONFIG_FILE_NAME: &str = "games.toml";
+const DEFAULT_WIDTH: u32 = 1280;
+const DEFAULT_HEIGHT: u32 = 720;
 
 type CommandHandler = for<'a> fn(games: &'a Games, args: &'a [String]) -> Result<(), GameError<'a>>;
+
+struct Settings {
+    width: u32,
+    height: u32,
+    use_gamescope: bool,
+}
 
 struct GameCommand {
     cmd: &'static str,
@@ -258,6 +266,34 @@ impl GetStr for Table {
 fn parse_config(config_content: &str) -> Result<Games, ParseError> {
     let mut games = HashMap::new();
     let config = config_content.parse::<Table>().unwrap();
+
+    let settings = match config.get("settings") {
+        Some(Value::Table(tbl)) => {
+            let width = match tbl.get("width") {
+                Some(Value::Integer(i)) => *i as u32,
+                _ => DEFAULT_WIDTH,
+            };
+            let height = match tbl.get("height") {
+                Some(Value::Integer(i)) => *i as u32,
+                _ => DEFAULT_HEIGHT,
+            };
+            let use_gamescope = match tbl.get("use_gamescope") {
+                Some(Value::Boolean(b)) => *b,
+                _ => false,
+            };
+            Settings {
+                width,
+                height,
+                use_gamescope,
+            }
+        }
+        _ => Settings {
+            height: 0,
+            width: 0,
+            use_gamescope: false,
+        },
+    };
+
     let directories = match config.get("directories") {
         Some(Value::Table(tbl)) => tbl,
         _ => &Table::new(),
@@ -330,11 +366,30 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                     Some(Value::Integer(i)) => Some(i),
                     _ => None,
                 };
-                if let Some(i) = fps_limit {
-                    let fps_limit_setting = format!("fps_limit={}", i);
-                    env.insert("MANGOHUD_CONFIG".to_string(), fps_limit_setting);
-                }
-                let command = if use_mangohud {
+                let command = if settings.use_gamescope {
+                    let cmd = format!(
+                        "gamescope -W {} -H {} -f --force-grab-cursor",
+                        settings.width, settings.height
+                    );
+                    let mut c =
+                        shell_words::split(&cmd).expect("Failed to split gamescope command");
+                    if let Some(i) = fps_limit {
+                        c.push("-r".to_string());
+                        c.push(i.to_string());
+                    }
+                    if use_mangohud {
+                        c.push("--mangoapp".to_string());
+                    }
+                    c.push("--".to_string());
+                    for x in command.into_iter() {
+                        c.push(x);
+                    }
+                    c
+                } else if use_mangohud {
+                    if let Some(i) = fps_limit {
+                        let fps_limit_setting = format!("fps_limit={}", i);
+                        env.insert("MANGOHUD_CONFIG".to_string(), fps_limit_setting);
+                    }
                     let mut c = Vec::new();
                     c.push("mangohud".to_string());
                     for x in command.into_iter() {
@@ -573,6 +628,113 @@ mod tests {
         match game.env.get("MANGOHUD_CONFIG") {
             Some(s) => assert_eq!(s, "fps_limit=60"),
             None => panic!("No mangohud FPS limit set"),
+        }
+    }
+
+    #[test]
+    fn test_gamescope_height_width_settings() {
+        let config = "
+        [settings]
+        width = 1920
+        height = 1080
+        use_gamescope = true
+        
+        [games]
+        [games.morrowind]
+        name = \"Morrowind\"
+        cmd = \"openmw\"
+        use_mangohud = true";
+        let games = parse_config(config).expect("Bad config");
+        if let Some(game) = games.find("morrowind") {
+            assert_eq!(
+                game.command,
+                vec![
+                    "gamescope",
+                    "-W",
+                    "1920",
+                    "-H",
+                    "1080",
+                    "-f",
+                    "--force-grab-cursor",
+                    "--mangoapp",
+                    "--",
+                    "openmw"
+                ]
+            );
+        } else {
+            panic!("Game not found");
+        }
+    }
+
+    #[test]
+    fn test_gamescope_default_height_and_width_settings() {
+        let config = "
+        [settings]
+        use_gamescope = true
+        
+        [games]
+        [games.morrowind]
+        name = \"Morrowind\"
+        cmd = \"openmw\"
+        use_mangohud = true";
+        let games = parse_config(config).expect("Bad config");
+        if let Some(game) = games.find("morrowind") {
+            assert_eq!(
+                game.command,
+                vec![
+                    "gamescope",
+                    "-W",
+                    "1280",
+                    "-H",
+                    "720",
+                    "-f",
+                    "--force-grab-cursor",
+                    "--mangoapp",
+                    "--",
+                    "openmw"
+                ]
+            );
+        } else {
+            panic!("Game not found");
+        }
+    }
+
+    #[test]
+    fn test_gamescope_frame_rate_limit() {
+        let config = "
+        [settings]
+        width = 1920
+        height = 1080
+        use_gamescope = true
+        
+        [games]
+        [games.test]
+        name = \"Test Game\"
+        cmd = \"sh start.sh\"
+        fps_limit = 60
+        use_mangohud = true";
+        let games = parse_config(config).expect("Bad config");
+        if let Some(game) = games.find("test") {
+            assert_eq!(
+                game.command,
+                vec![
+                    "gamescope",
+                    "-W",
+                    "1920",
+                    "-H",
+                    "1080",
+                    "-f",
+                    "--force-grab-cursor",
+                    "-r",
+                    "60",
+                    "--mangoapp",
+                    "--",
+                    "sh",
+                    "start.sh"
+                ]
+            );
+        } else {
+            panic!("Game not found");
         }
     }
 }

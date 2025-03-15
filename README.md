@@ -21,6 +21,14 @@ via the `game` executable.
 The configuration file must be in the user's home directory and must be called
 `games.toml`. 
 
+### Settings
+
+The `[settings]` table contains global settings.
+
+* `width` (integer) - screen width in pixels (default 1280)
+* `height` (integer) - screen height in pixels (default 720)
+* `use_gamescope` (boolean) - choose to use `gamescope` or not (default false)
+
 ### directories
 
 The `[directories]` table contains directories that can be used to simplify
@@ -56,7 +64,7 @@ parent directory of the `dir`
 _Technically_ all of these fields are optional, but at least one of `cmd`,
 `wine_exe`, `dosbox_config`, or `scummvm_id` is required.
 
-## Dependencies
+## External Dependencies
 
 This program assumes that you have the following programs installed:
 
@@ -64,4 +72,5 @@ This program assumes that you have the following programs installed:
 * Mangohud
 * DOSBox
 * ScummVM
+* Gamescope
 
