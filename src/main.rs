@@ -70,6 +70,10 @@ fn main() {
             ParseError::MissingCommand(id) => println!("Game missing cmd: {}", id),
             ParseError::GameNotTable => println!("The 'game' key must correspond to a table"),
             ParseError::MissingGameTable => println!("A 'game' table is required'"),
+            ParseError::NoSuchDirectoryPrefix(game_id, prefix) => println!(
+                "Game {} has nonexistent directory prefix: {}",
+                game_id, prefix
+            ),
         },
     }
 }
@@ -339,7 +343,19 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                     }
                 };
                 let dir_prefix = game_config.get_str("dir_prefix");
-                let dir_prefix = directories.get_str(dir_prefix);
+                let dir_prefix = if !dir_prefix.is_empty() {
+                    match directories.get(dir_prefix) {
+                        Some(Value::String(s)) => s,
+                        _ => {
+                            return Err(ParseError::NoSuchDirectoryPrefix(
+                                game_id.to_string(),
+                                dir_prefix.to_string(),
+                            ))
+                        }
+                    }
+                } else {
+                    ""
+                };
                 let dir = game_config.get_str("dir");
                 let mut env = match game_config.get("env") {
                     Some(Value::Table(tbl)) => {
@@ -439,6 +455,7 @@ enum ParseError {
     MissingCommand(String),
     GameNotTable,
     MissingGameTable,
+    NoSuchDirectoryPrefix(String, String),
 }
 
 #[cfg(test)]
@@ -518,7 +535,7 @@ mod tests {
 
     #[test]
     fn test_wine_game() {
-        let config = "[games]\n[games.bg3]\nname = \"Baldur's Gate 3\"\ndir_prefix = \"wine_gog_dir\"\ndir=\"Baldur's Gate 3\"\nwine_exe = \"bg3.exe\"";
+        let config = "[games]\n[games.bg3]\nname = \"Baldur's Gate 3\"\ndir=\"Baldur's Gate 3\"\nwine_exe = \"bg3.exe\"";
         let games = parse_config(config).expect("Bad config");
         let game = games.find("bg3").unwrap();
         assert_eq!(game.command, vec!["mangohud", "wine", "bg3.exe"]);
@@ -539,7 +556,6 @@ mod tests {
         [games]
         [games.bg3]
         name = \"Baldur's Gate 3\"
-        dir_prefix = \"wine_gog_dir\"
         dir=\"Baldur's Gate 3\"
         wine_exe = \"bg3.exe\"
         use_mangohud = false
@@ -555,7 +571,6 @@ mod tests {
         [games]
         [games.test]
         name = \"Test Game\"
-        dir_prefix = \"gog_dir\"
         dir=\"Test Game\"
         cmd = \"sh start.sh\"";
         let games = parse_config(config).expect("Bad config");
@@ -569,7 +584,6 @@ mod tests {
         [games]
         [games.test]
         name = \"Test Game\"
-        dir_prefix = \"gog_dir\"
         dir=\"Test Game\"
         cmd = \"sh 'start the game.sh'\"";
         let games = parse_config(config).expect("Bad config");
@@ -583,7 +597,6 @@ mod tests {
         [games]
         [games.doom]
         name = \"Doom\"
-        dir_prefix = \"games_dir\"
         dir=\"Doom\"
         cmd = \"dsda-doom -iwad DOOM.WAD\"
         tags = [\"classic\", \"fps\"]";
@@ -600,7 +613,6 @@ mod tests {
         [games]
         [games.test]
         name = \"Test Game\"
-        dir_prefix = \"wine_gog_dir\"
         dir=\"Test Game\"
         use_mangohud = false
         wine_exe = \"Test Game.exe\"
@@ -619,7 +631,6 @@ mod tests {
         [games]
         [games.test]
         name = \"Test Game\"
-        dir_prefix = \"wine_gog_dir\"
         dir=\"Test Game\"
         fps_limit = 60
         wine_exe = \"TestGame.exe\"";
@@ -735,6 +746,23 @@ mod tests {
             );
         } else {
             panic!("Game not found");
+        }
+    }
+
+    #[test]
+    fn test_nonexistent_directory_prefix_results_in_error() {
+        let config = "
+        [games]
+        [games.test]
+        name = \"Test Game\"
+        dir_prefix = \"bad_dir\"
+        cmd = \"sh start.sh\"";
+        match parse_config(config) {
+            Err(ParseError::NoSuchDirectoryPrefix(i, p)) => {
+                assert_eq!(i, "test");
+                assert_eq!(p, "bad_dir");
+            }
+            _ => panic!("Parse should fail with nonexistent directory prefix"),
         }
     }
 }
