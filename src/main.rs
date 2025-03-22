@@ -74,6 +74,7 @@ fn main() {
                 "Game {} has nonexistent directory prefix: {}",
                 game_id, prefix
             ),
+            ParseError::TomlError(message) => println!("{}", message),
         },
     }
 }
@@ -269,7 +270,10 @@ impl GetStr for Table {
 
 fn parse_config(config_content: &str) -> Result<Games, ParseError> {
     let mut games = HashMap::new();
-    let config = config_content.parse::<Table>().unwrap();
+    let config = match config_content.parse::<Table>() {
+        Ok(t) => t,
+        Err(e) => return Err(ParseError::TomlError(e.to_string())),
+    };
 
     let settings = match config.get("settings") {
         Some(Value::Table(tbl)) => {
@@ -456,6 +460,7 @@ enum ParseError {
     GameNotTable,
     MissingGameTable,
     NoSuchDirectoryPrefix(String, String),
+    TomlError(String),
 }
 
 #[cfg(test)]
@@ -763,6 +768,28 @@ mod tests {
                 assert_eq!(p, "bad_dir");
             }
             _ => panic!("Parse should fail with nonexistent directory prefix"),
+        }
+    }
+
+    #[test]
+    fn test_toml_error() {
+        // NOTE: Error is that game ID is duplicated
+        let config = "
+        [games]
+        [games.test]
+        name = \"Test Game\"
+        dir_prefix = \"bad_dir\"
+        cmd = \"sh start.sh\"
+
+        [games.test]
+        name = \"Test Game\"
+        dir_prefix = \"bad_dir\"
+        cmd = \"sh start.sh\"";
+
+        let expected_message = "TOML parse error at line 8, column 9\n  |\n8 |         [games.test]\n  |         ^\ninvalid table header\nduplicate key `test` in table `games`\n";
+        match parse_config(config) {
+            Err(ParseError::TomlError(m)) => assert_eq!(m, expected_message),
+            _ => panic!("TOML parse should fail"),
         }
     }
 }
