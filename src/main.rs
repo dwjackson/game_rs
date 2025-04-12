@@ -361,6 +361,10 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
                     ""
                 };
                 let dir = game_config.get_str("dir");
+                let dir = match directories.get(dir) {
+                    Some(Value::String(s)) => s,
+                    _ => dir,
+                };
                 let mut env = match game_config.get("env") {
                     Some(Value::Table(tbl)) => {
                         let mut environment = HashMap::new();
@@ -790,6 +794,32 @@ mod tests {
         match parse_config(config) {
             Err(ParseError::TomlError(m)) => assert_eq!(m, expected_message),
             _ => panic!("TOML parse should fail"),
+        }
+    }
+
+    #[test]
+    fn test_dir_from_directories_config() {
+        let config = "
+        [directories]
+        test_game_dir = \"/home/test/test_game\"
+
+        [games]
+        
+        [games.testgame]
+        name = \"Test Game\"
+        dir = \"test_game_dir\"
+        cmd=\"./test_game\"
+        ";
+
+        let games = parse_config(config).expect("Bad config");
+        if let Some(game) = games.find("testgame") {
+            if let Some(dir) = &game.dir {
+                assert_eq!(dir, "/home/test/test_game");
+            } else {
+                panic!("No directory");
+            }
+        } else {
+            panic!("Game not found");
         }
     }
 }
