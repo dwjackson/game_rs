@@ -1,9 +1,20 @@
+mod game;
+use game::{Game, GameError};
+
+mod settings;
+use settings::Settings;
+
+mod game_builder;
+use game_builder::GameBuilder;
+
+mod parse_error;
+use parse_error::ParseError;
+
 use homedir::my_home;
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 use toml::{Table, Value};
 
 const USAGE: &str = "USAGE: game [COMMAND]";
@@ -12,12 +23,6 @@ const DEFAULT_WIDTH: u32 = 1280;
 const DEFAULT_HEIGHT: u32 = 720;
 
 type CommandHandler = for<'a> fn(games: &'a Games, args: &'a [String]) -> Result<(), GameError<'a>>;
-
-struct Settings {
-    width: u32,
-    height: u32,
-    use_gamescope: bool,
-}
 
 struct GameCommand {
     cmd: &'static str,
@@ -75,6 +80,7 @@ fn main() {
                 game_id, prefix
             ),
             ParseError::TomlError(message) => println!("{}", message),
+            ParseError::UnrecognizedOption(option) => println!("Unrecognized option: {}", option),
         },
     }
 }
@@ -189,62 +195,6 @@ fn command_play<'a>(games: &'a Games, args: &'a [String]) -> Result<(), GameErro
     }
 }
 
-enum GameError<'a> {
-    NoGameId,
-    CouldNotChangeDirectory(&'a str),
-    NoSuchGame(&'a str),
-    CommandReturnedFailure(String),
-    ExecutionFailed,
-}
-
-struct Game {
-    id: String,
-    name: String,
-    dir: Option<String>,
-    command: Vec<String>,
-    env: HashMap<String, String>,
-    tags: Vec<String>,
-}
-
-impl Game {
-    fn format(&self) -> String {
-        format!("{} - {}", self.id, self.name)
-    }
-
-    fn run(&self) -> Result<(), GameError> {
-        if let Some(dir) = &self.dir {
-            let path = Path::new(dir);
-            if env::set_current_dir(path).is_err() {
-                return Err(GameError::CouldNotChangeDirectory(dir));
-            }
-        }
-        let mut command = Command::new(&self.command[0]);
-        command.args(&self.command[1..]);
-        for (k, v) in self.env.iter() {
-            command.env(k, v);
-        }
-        match command.status() {
-            Ok(status) => {
-                if let Some(code) = status.code() {
-                    if code == 1 {
-                        let cmd = format!("{:?}", command);
-                        return Err(GameError::CommandReturnedFailure(cmd));
-                    }
-                }
-            }
-            Err(_) => {
-                return Err(GameError::ExecutionFailed);
-            }
-        }
-
-        Ok(())
-    }
-
-    fn has_tag(&self, tag: &str) -> bool {
-        self.tags.iter().any(|t| t == tag)
-    }
-}
-
 struct Games {
     games: HashMap<String, Game>,
 }
@@ -309,143 +259,7 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
     if let Value::Table(games_config) = &config["games"] {
         for (game_id, value) in games_config.iter() {
             if let Value::Table(game_config) = &value {
-                let name = if let Value::String(game_name) = &game_config["name"] {
-                    game_name.to_string()
-                } else {
-                    return Err(ParseError::MissingName(game_id.clone()));
-                };
-                let command = if let Some(Value::String(scummvm_id)) = game_config.get("scummvm_id")
-                {
-                    vec!["scummvm".to_string(), scummvm_id.to_string()]
-                } else if let Some(Value::String(wine_exe)) = game_config.get("wine_exe") {
-                    let mut cmd_parts = Vec::new();
-                    cmd_parts.push("wine".to_string());
-                    cmd_parts.push(wine_exe.to_string());
-                    if let Some(Value::String(wine_args_string)) = game_config.get("wine_exe_args")
-                    {
-                        let wine_args = shell_words::split(wine_args_string)
-                            .expect("Failed to parse wine command");
-                        for arg in wine_args.into_iter() {
-                            cmd_parts.push(arg);
-                        }
-                    }
-                    cmd_parts
-                } else if let Some(Value::String(dosbox_conf_file)) =
-                    game_config.get("dosbox_config")
-                {
-                    vec![
-                        "dosbox".to_string(),
-                        "-conf".to_string(),
-                        dosbox_conf_file.to_string(),
-                    ]
-                } else {
-                    match game_config.get("cmd") {
-                        Some(Value::String(cmd)) => {
-                            shell_words::split(cmd).expect("Failed to parse shell command")
-                        }
-                        _ => return Err(ParseError::MissingCommand(game_id.clone())),
-                    }
-                };
-                let dir_prefix = game_config.get_str("dir_prefix");
-                let dir_prefix = if !dir_prefix.is_empty() {
-                    match directories.get(dir_prefix) {
-                        Some(Value::String(s)) => s,
-                        _ => {
-                            return Err(ParseError::NoSuchDirectoryPrefix(
-                                game_id.to_string(),
-                                dir_prefix.to_string(),
-                            ))
-                        }
-                    }
-                } else {
-                    ""
-                };
-                let dir = game_config.get_str("dir");
-                let dir = match directories.get(dir) {
-                    Some(Value::String(s)) => s,
-                    _ => dir,
-                };
-                let mut env = match game_config.get("env") {
-                    Some(Value::Table(tbl)) => {
-                        let mut environment = HashMap::new();
-                        for (k, v) in tbl.iter() {
-                            if let Value::String(s) = v {
-                                environment.insert(k.clone(), s.as_str().to_string());
-                            }
-                        }
-                        environment
-                    }
-                    _ => HashMap::new(),
-                };
-                let game_dir = Path::new(dir_prefix)
-                    .join(dir)
-                    .to_str()
-                    .unwrap()
-                    .to_string();
-                let use_mangohud = match game_config.get("use_mangohud") {
-                    Some(Value::Boolean(b)) => *b,
-                    _ => command[0] == ("wine"),
-                };
-                let fps_limit = match game_config.get("fps_limit") {
-                    Some(Value::Integer(i)) => Some(i),
-                    _ => None,
-                };
-                let command = if settings.use_gamescope {
-                    let cmd = format!(
-                        "gamescope -W {} -H {} -f --force-grab-cursor",
-                        settings.width, settings.height
-                    );
-                    let mut c =
-                        shell_words::split(&cmd).expect("Failed to split gamescope command");
-                    if let Some(i) = fps_limit {
-                        c.push("-r".to_string());
-                        c.push(i.to_string());
-                    }
-                    if use_mangohud {
-                        c.push("--mangoapp".to_string());
-                    }
-                    c.push("--".to_string());
-                    for x in command.into_iter() {
-                        c.push(x);
-                    }
-                    c
-                } else if use_mangohud {
-                    if let Some(i) = fps_limit {
-                        let fps_limit_setting = format!("fps_limit={}", i);
-                        env.insert("MANGOHUD_CONFIG".to_string(), fps_limit_setting);
-                    }
-                    let mut c = Vec::new();
-                    c.push("mangohud".to_string());
-                    for x in command.into_iter() {
-                        c.push(x);
-                    }
-                    c
-                } else {
-                    command
-                };
-                let tags = if let Some(Value::Array(tags_array)) = game_config.get("tags") {
-                    tags_array
-                        .iter()
-                        .filter_map(|x| match x {
-                            Value::String(tag) => Some(tag.to_string()),
-                            _ => None,
-                        })
-                        .collect()
-                } else {
-                    Vec::new()
-                };
-                let game = Game {
-                    id: game_id.clone(),
-                    name,
-                    dir: if !game_dir.is_empty() {
-                        Some(game_dir)
-                    } else {
-                        None
-                    },
-                    command,
-                    env,
-                    tags,
-                };
+                let game = parse_game_config(game_id, game_config, directories, &settings)?;
                 games.insert(game_id.clone(), game);
             } else {
                 return Err(ParseError::GameNotTable);
@@ -457,14 +271,165 @@ fn parse_config(config_content: &str) -> Result<Games, ParseError> {
     Ok(Games { games })
 }
 
-#[derive(Debug)]
-enum ParseError {
-    MissingName(String),
-    MissingCommand(String),
-    GameNotTable,
-    MissingGameTable,
-    NoSuchDirectoryPrefix(String, String),
-    TomlError(String),
+type OptionParser = for<'a, 'b> fn(GameBuilder<'a>, &'b Table) -> GameBuilder<'a>;
+
+fn parse_name<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
+    if let Value::String(game_name) = &game_config["name"] {
+        builder.name(game_name.to_string())
+    } else {
+        builder
+    }
+}
+
+fn parse_scummvm_id<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
+    if let Some(Value::String(scummvm_id)) = game_config.get("scummvm_id") {
+        let command = vec!["scummvm".to_string(), scummvm_id.to_string()];
+        builder.command(command)
+    } else {
+        builder
+    }
+}
+
+fn parse_wine_exe<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
+    if let Some(Value::String(wine_exe)) = game_config.get("wine_exe") {
+        let mut cmd_parts = Vec::new();
+        cmd_parts.push("wine".to_string());
+        for word in shell_words::split(wine_exe).expect("Failed to parse wine command") {
+            cmd_parts.push(word);
+        }
+        builder.command(cmd_parts)
+    } else {
+        builder
+    }
+}
+
+fn parse_dosbox_conf<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
+    if let Some(Value::String(dosbox_conf_file)) = game_config.get("dosbox_config") {
+        let cmd = vec![
+            "dosbox".to_string(),
+            "-conf".to_string(),
+            dosbox_conf_file.to_string(),
+        ];
+        builder.command(cmd)
+    } else {
+        builder
+    }
+}
+
+fn parse_dir_prefix<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
+    let dir_prefix = game_config.get_str("dir_prefix");
+    if !dir_prefix.is_empty() {
+        builder.dir_prefix(dir_prefix.to_string())
+    } else {
+        builder
+    }
+}
+
+fn parse_cmd<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
+    if let Some(Value::String(cmd)) = game_config.get("cmd") {
+        let command_parts = shell_words::split(cmd).expect("Failed to parse shell command");
+        builder.command(command_parts)
+    } else {
+        builder
+    }
+}
+
+fn parse_dir<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
+    if let Some(Value::String(s)) = game_config.get("dir") {
+        builder.dir(s.to_string())
+    } else {
+        builder
+    }
+}
+
+fn parse_env<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
+    if let Some(Value::Table(tbl)) = game_config.get("env") {
+        let mut environment = HashMap::new();
+        for (k, v) in tbl.iter() {
+            if let Value::String(s) = v {
+                environment.insert(k.clone(), s.as_str().to_string());
+            }
+        }
+        builder.env(environment)
+    } else {
+        builder
+    }
+}
+
+fn parse_tags<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
+    if let Some(Value::Array(tags_array)) = game_config.get("tags") {
+        let tags = tags_array
+            .iter()
+            .filter_map(|x| match x {
+                Value::String(tag) => Some(tag.to_string()),
+                _ => None,
+            })
+            .collect();
+        builder.tags(tags)
+    } else {
+        builder
+    }
+}
+
+fn parse_use_mangohud<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
+    let use_mangohud = match game_config.get("use_mangohud") {
+        Some(Value::Boolean(b)) => *b,
+        _ => builder.is_wine(),
+    };
+    builder.mangohud(use_mangohud)
+}
+
+fn parse_fps_limit<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
+    if let Some(Value::Integer(i)) = game_config.get("fps_limit") {
+        builder.fps_limit(*i)
+    } else {
+        builder
+    }
+}
+
+fn parse_use_gamescope<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
+    if let Some(Value::Boolean(b)) = game_config.get("use_gamescope") {
+        if *b {
+            builder.use_gamescope()
+        } else {
+            builder
+        }
+    } else {
+        builder
+    }
+}
+
+fn parse_game_config(
+    game_id: &str,
+    game_config: &Table,
+    directories: &Table,
+    settings: &Settings,
+) -> Result<Game, ParseError> {
+    let mut option_parsers: HashMap<&str, OptionParser> = HashMap::new();
+    option_parsers.insert("name", parse_name);
+    option_parsers.insert("scummvm_id", parse_scummvm_id);
+    option_parsers.insert("wine_exe", parse_wine_exe);
+    option_parsers.insert("cmd", parse_cmd);
+    option_parsers.insert("dosbox_config", parse_dosbox_conf);
+    option_parsers.insert("dir_prefix", parse_dir_prefix);
+    option_parsers.insert("dir", parse_dir);
+    option_parsers.insert("env", parse_env);
+    option_parsers.insert("tags", parse_tags);
+    option_parsers.insert("use_mangohud", parse_use_mangohud);
+    option_parsers.insert("fps_limit", parse_fps_limit);
+    option_parsers.insert("use_gamescope", parse_use_gamescope);
+    let option_parsers = option_parsers;
+
+    let mut builder = GameBuilder::new(game_id.to_string(), directories, settings);
+    for key in game_config.keys() {
+        if !option_parsers.contains_key(key.as_str()) {
+            return Err(ParseError::UnrecognizedOption(key.to_string()));
+        }
+        let parse_option = &option_parsers[key.as_str()];
+        builder = parse_option(builder, game_config);
+    }
+
+    builder.build()
 }
 
 #[cfg(test)]
@@ -624,8 +589,7 @@ mod tests {
         name = \"Test Game\"
         dir=\"Test Game\"
         use_mangohud = false
-        wine_exe = \"Test Game.exe\"
-        wine_exe_args = \"-opt1 param1 -opt2\"";
+        wine_exe = \"'Test Game.exe' -opt1 param1 -opt2\"";
         let games = parse_config(config).expect("Bad config");
         let game = games.find("test").unwrap();
         assert_eq!(
@@ -820,6 +784,23 @@ mod tests {
             }
         } else {
             panic!("Game not found");
+        }
+    }
+
+    #[test]
+    fn test_unrecognized_option_produces_error() {
+        let config = "
+        [games]
+        [games.testgame]
+        name = \"Test Game\"
+        dir = \"test_game_dir\"
+        cmd=\"./test_game\"
+        use_manohud = true # note the spelling error";
+        match parse_config(config) {
+            Err(ParseError::UnrecognizedOption(s)) => {
+                assert_eq!(s, "use_manohud")
+            }
+            _ => panic!("This config should produce an error"),
         }
     }
 }
