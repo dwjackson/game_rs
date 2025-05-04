@@ -59,6 +59,7 @@ parent directory of the `dir`
 * `scummvm_id` - the ScummVM target ID of the game to launch
 * `tags` - a list of tags (strings) used when listing games
 * `use_mangohud` - boolean to control use of mangohud, true by default for wine
+* `use_vk` - boolean to control use of dxvk/vkd3d, true by default
 * `wine_exe` - the name of the Windows executable for `wine` to execute
 
 _Technically_ all of these fields are optional, but at least one of `cmd`,
