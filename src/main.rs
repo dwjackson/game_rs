@@ -399,6 +399,14 @@ fn parse_use_gamescope<'a>(builder: GameBuilder<'a>, game_config: &Table) -> Gam
     }
 }
 
+fn parse_use_vk<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
+    if let Some(Value::Boolean(b)) = game_config.get("use_vk") {
+        builder.use_vk(*b)
+    } else {
+        builder
+    }
+}
+
 fn parse_game_config(
     game_id: &str,
     game_config: &Table,
@@ -418,6 +426,7 @@ fn parse_game_config(
     option_parsers.insert("use_mangohud", parse_use_mangohud);
     option_parsers.insert("fps_limit", parse_fps_limit);
     option_parsers.insert("use_gamescope", parse_use_gamescope);
+    option_parsers.insert("use_vk", parse_use_vk);
     let option_parsers = option_parsers;
 
     let mut builder = GameBuilder::new(game_id.to_string(), directories, settings);
@@ -801,6 +810,28 @@ mod tests {
                 assert_eq!(s, "use_manohud")
             }
             _ => panic!("This config should produce an error"),
+        }
+    }
+
+    #[test]
+    fn test_do_not_use_vk() {
+        let config = "
+        [games]
+        [games.testgame]
+        name = \"Test Game\"
+        dir = \"test_game_dir\"
+        wine_exe=\"Test.exe\"
+        use_vk = false";
+
+        let games = parse_config(config).expect("Bad config");
+        if let Some(game) = games.find("testgame") {
+            assert_eq!(game.command, vec!["mangohud", "wine", "Test.exe"]);
+            match game.env.get("WINEDLLOVERRIDES") {
+                Some(s) => assert_eq!(s, "*d3d9,*d3d10,*d3d10_1,*d3d10core,*d3d11,*dxgi=b"),
+                None => panic!("No mangohud FPS limit set"),
+            }
+        } else {
+            panic!("Game not found");
         }
     }
 }

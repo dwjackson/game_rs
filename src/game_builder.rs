@@ -18,6 +18,7 @@ pub struct GameBuilder<'a> {
     use_mangohud: Option<bool>,
     fps_limit: Option<i64>,
     use_gamescope: bool,
+    use_vk: bool,
 }
 
 impl<'a> GameBuilder<'a> {
@@ -35,6 +36,7 @@ impl<'a> GameBuilder<'a> {
             use_mangohud: None,
             fps_limit: None,
             use_gamescope: false,
+            use_vk: true,
         }
     }
 
@@ -84,6 +86,11 @@ impl<'a> GameBuilder<'a> {
 
     pub fn use_gamescope(mut self) -> Self {
         self.use_gamescope = true;
+        self
+    }
+
+    pub fn use_vk(mut self, b: bool) -> Self {
+        self.use_vk = b;
         self
     }
 
@@ -162,6 +169,13 @@ impl<'a> GameBuilder<'a> {
                     format!("fps_limit={}", limit),
                 );
             }
+        }
+
+        if !self.use_vk {
+            env.insert(
+                "WINEDLLOVERRIDES".to_string(),
+                "*d3d9,*d3d10,*d3d10_1,*d3d10core,*d3d11,*dxgi=b".to_string(),
+            );
         }
 
         Ok(Game {
