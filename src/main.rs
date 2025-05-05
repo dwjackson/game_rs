@@ -149,11 +149,11 @@ fn command_list<'a>(games: &Games, args: &[String]) -> Result<(), GameError<'a>>
     game_ids.sort();
 
     if !args.is_empty() {
-        let tag = &args[0];
-        // List all games having the given tag
+        let tags = &args[0..];
+        // List all games having any of the given tags
         for game_id in game_ids.iter() {
             let game = games.find(game_id).unwrap();
-            if game.has_tag(tag) {
+            if tags.iter().any(|tag| game.has_tag(tag)) {
                 println!("{}", game.format());
             }
         }
