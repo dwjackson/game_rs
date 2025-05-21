@@ -153,7 +153,7 @@ fn command_list<'a>(games: &Games, args: &[String]) -> Result<(), GameError<'a>>
         // List all games having any of the given tags
         for game_id in game_ids.iter() {
             let game = games.find(game_id).unwrap();
-            if tags.iter().any(|tag| game.has_tag(tag)) {
+            if game_matches_tags(game, tags) {
                 println!("{}", game.format());
             }
         }
@@ -164,6 +164,12 @@ fn command_list<'a>(games: &Games, args: &[String]) -> Result<(), GameError<'a>>
         }
     }
     Ok(())
+}
+
+fn game_matches_tags(game: &Game, tag_groups: &[String]) -> bool {
+    tag_groups
+        .iter()
+        .any(|tag_group| tag_group.split(',').all(|tag| game.has_tag(tag)))
 }
 
 fn command_tags<'a>(games: &Games, _args: &[String]) -> Result<(), GameError<'a>> {
@@ -833,5 +839,35 @@ mod tests {
         } else {
             panic!("Game not found");
         }
+    }
+
+    #[test]
+    fn test_any_tags_match() {
+        let game = Game {
+            id: "test_game".to_string(),
+            name: "Test Game".to_string(),
+            dir: None,
+            command: vec!["test_game".to_string()],
+            env: HashMap::new(),
+            tags: vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()],
+        };
+        let tags = ["tag2".to_string(), "tag4".to_string()];
+        assert!(game_matches_tags(&game, &tags));
+    }
+
+    #[test]
+    fn test_all_tags_match() {
+        let game = Game {
+            id: "test_game".to_string(),
+            name: "Test Game".to_string(),
+            dir: None,
+            command: vec!["test_game".to_string()],
+            env: HashMap::new(),
+            tags: vec!["tag1".to_string(), "tag2".to_string()],
+        };
+        let tags_matching = ["tag1,tag2".to_string()];
+        assert!(game_matches_tags(&game, &tags_matching));
+        let tags_not_matching = ["tag1,tag3".to_string()];
+        assert!(!game_matches_tags(&game, &tags_not_matching));
     }
 }

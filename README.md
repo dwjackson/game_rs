@@ -12,9 +12,15 @@ via the `game` executable.
 
 * `help` - explain all commands
 * `list` - list all known games
-* `list [TAG]` - list all games having a given tag
+* `list [TAGS...]` - list all games having a given tag
 * `play [GAME_ID]` - play the game with the given ID
 * `tags` - list all tags
+
+Note that tags cannot contain commas because if a comma is used with the list
+command, the strings delineated by the tags must _all_ match. Otherwise, any of
+the supplied tags must match. For example `doom,mod` would match anything
+tagged as _both_ `doom` and `mod` but `doom mod` would match anything tagged
+_either_ `doom` _or_ `mod`.
 
 ## Configuration
 
