@@ -60,6 +60,7 @@ Known fields are as follows:
 * `env` - a table where each key/value pair corresponds to an environment
 variable that should be set before running the game
 * `fps_limit` - set the mangohud FPS limit to given integer
+* `installed` - mark a game as installed or not (default is true)
 * `prefix_dir` - the key of the entry in the `[directories]` table that is the
 parent directory of the `dir`
 * `scummvm_id` - the ScummVM target ID of the game to launch

@@ -66,6 +66,7 @@ fn main() {
                     GameError::NoSuchGame(game_id) => println!("No such game: {}", game_id),
                     GameError::CommandReturnedFailure(cmd) => println!("Command failed: {}", cmd),
                     GameError::ExecutionFailed => println!("Could not execute game"),
+                    GameError::NotInstalled => println!("Game is not installed"),
                 }
                 std::process::exit(1);
             }
@@ -393,6 +394,18 @@ fn parse_fps_limit<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBui
     }
 }
 
+fn parse_installed<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
+    if let Some(Value::Boolean(b)) = game_config.get("installed") {
+        if !b {
+            builder.not_installed()
+        } else {
+            builder
+        }
+    } else {
+        builder
+    }
+}
+
 fn parse_use_gamescope<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
     if let Some(Value::Boolean(b)) = game_config.get("use_gamescope") {
         if *b {
@@ -420,19 +433,20 @@ fn parse_game_config(
     settings: &Settings,
 ) -> Result<Game, ParseError> {
     let mut option_parsers: HashMap<&str, OptionParser> = HashMap::new();
+    option_parsers.insert("cmd", parse_cmd);
+    option_parsers.insert("dir", parse_dir);
+    option_parsers.insert("dir_prefix", parse_dir_prefix);
+    option_parsers.insert("dosbox_config", parse_dosbox_conf);
+    option_parsers.insert("env", parse_env);
+    option_parsers.insert("fps_limit", parse_fps_limit);
+    option_parsers.insert("installed", parse_installed);
     option_parsers.insert("name", parse_name);
     option_parsers.insert("scummvm_id", parse_scummvm_id);
-    option_parsers.insert("wine_exe", parse_wine_exe);
-    option_parsers.insert("cmd", parse_cmd);
-    option_parsers.insert("dosbox_config", parse_dosbox_conf);
-    option_parsers.insert("dir_prefix", parse_dir_prefix);
-    option_parsers.insert("dir", parse_dir);
-    option_parsers.insert("env", parse_env);
     option_parsers.insert("tags", parse_tags);
-    option_parsers.insert("use_mangohud", parse_use_mangohud);
-    option_parsers.insert("fps_limit", parse_fps_limit);
     option_parsers.insert("use_gamescope", parse_use_gamescope);
+    option_parsers.insert("use_mangohud", parse_use_mangohud);
     option_parsers.insert("use_vk", parse_use_vk);
+    option_parsers.insert("wine_exe", parse_wine_exe);
     let option_parsers = option_parsers;
 
     let mut builder = GameBuilder::new(game_id.to_string(), directories, settings);
@@ -850,6 +864,7 @@ mod tests {
             command: vec!["test_game".to_string()],
             env: HashMap::new(),
             tags: vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()],
+            installed: true,
         };
         let tags = ["tag2".to_string(), "tag4".to_string()];
         assert!(game_matches_tags(&game, &tags));
@@ -864,10 +879,34 @@ mod tests {
             command: vec!["test_game".to_string()],
             env: HashMap::new(),
             tags: vec!["tag1".to_string(), "tag2".to_string()],
+            installed: true,
         };
         let tags_matching = ["tag1,tag2".to_string()];
         assert!(game_matches_tags(&game, &tags_matching));
         let tags_not_matching = ["tag1,tag3".to_string()];
         assert!(!game_matches_tags(&game, &tags_not_matching));
+    }
+
+    #[test]
+    fn test_installed_flag_prevents_game_being_played() {
+        let config = "
+        [games]
+        [games.testgame]
+        name = \"Test Game\"
+        dir = \"test_game_dir\"
+        wine_exe=\"Test.exe\"
+        installed = false";
+
+        let games = parse_config(config).expect("Bad config");
+        if let Some(game) = games.find("testgame") {
+            match game.run() {
+                Err(GameError::NotInstalled) => (),
+                _ => {
+                    panic!("Game should not be runnable");
+                }
+            }
+        } else {
+            panic!("Game not found");
+        }
     }
 }

@@ -19,6 +19,7 @@ pub struct GameBuilder<'a> {
     fps_limit: Option<i64>,
     use_gamescope: bool,
     use_vk: bool,
+    installed: bool,
 }
 
 impl<'a> GameBuilder<'a> {
@@ -37,6 +38,7 @@ impl<'a> GameBuilder<'a> {
             fps_limit: None,
             use_gamescope: false,
             use_vk: true,
+            installed: true,
         }
     }
 
@@ -91,6 +93,11 @@ impl<'a> GameBuilder<'a> {
 
     pub fn use_vk(mut self, b: bool) -> Self {
         self.use_vk = b;
+        self
+    }
+
+    pub fn not_installed(mut self) -> Self {
+        self.installed = false;
         self
     }
 
@@ -189,6 +196,7 @@ impl<'a> GameBuilder<'a> {
             },
             env,
             tags: self.tags,
+            installed: self.installed,
         })
     }
 }

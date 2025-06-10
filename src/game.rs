@@ -10,6 +10,7 @@ pub struct Game {
     pub command: Vec<String>,
     pub env: HashMap<String, String>,
     pub tags: Vec<String>,
+    pub installed: bool,
 }
 
 impl Game {
@@ -18,6 +19,10 @@ impl Game {
     }
 
     pub fn run(&self) -> Result<(), GameError> {
+        if !self.installed {
+            return Err(GameError::NotInstalled);
+        }
+
         if let Some(dir) = &self.dir {
             let path = Path::new(dir);
             if env::set_current_dir(path).is_err() {
@@ -57,4 +62,5 @@ pub enum GameError<'a> {
     NoSuchGame(&'a str),
     CommandReturnedFailure(String),
     ExecutionFailed,
+    NotInstalled,
 }
