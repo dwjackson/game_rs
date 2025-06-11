@@ -146,25 +146,26 @@ fn command_help<'a>(_games: &Games, _args: &[String]) -> Result<(), GameError<'a
 }
 
 fn command_list<'a>(games: &Games, args: &[String]) -> Result<(), GameError<'a>> {
+    for game in list_games(games, args) {
+        println!("{}", game);
+    }
+    Ok(())
+}
+
+fn list_games(games: &Games, args: &[String]) -> Vec<String> {
     let mut game_ids: Vec<&String> = games.games.keys().collect();
     game_ids.sort();
 
-    if !args.is_empty() {
-        let tags = &args[0..];
-        // List all games having any of the given tags
-        for game_id in game_ids.iter() {
-            let game = games.find(game_id).unwrap();
-            if game_matches_tags(game, tags) {
-                println!("{}", game.format());
-            }
-        }
-    } else {
-        for game_id in game_ids.iter() {
-            let game = games.find(game_id).unwrap();
-            println!("{}", game.format());
-        }
-    }
-    Ok(())
+    let tags = &args[0..];
+
+    // List all games having any of the given tags
+    game_ids
+        .iter()
+        .map(|game_id| games.find(game_id).unwrap())
+        .filter(|game| game.is_installed())
+        .filter(|game| args.is_empty() || game_matches_tags(game, tags))
+        .map(|game| game.format())
+        .collect()
 }
 
 fn game_matches_tags(game: &Game, tag_groups: &[String]) -> bool {
@@ -908,5 +909,26 @@ mod tests {
         } else {
             panic!("Game not found");
         }
+    }
+
+    #[test]
+    fn test_list_does_not_show_games_that_are_not_installed() {
+        let config = "
+        [games]
+        [games.testgame]
+        name = \"Test Game\"
+        dir = \"test_game_dir\"
+        wine_exe=\"Test.exe\"
+        installed = false
+
+        [games.testgame2]
+        name = \"Test Game 2\"
+        dir = \"test_game_dir\"
+        wine_exe = \"TestGame2.exe\"";
+
+        let games = parse_config(config).expect("Bad config");
+        let game_list = list_games(&games, &[String::new(); 0]);
+        assert_eq!(game_list.len(), 1);
+        assert_eq!(&game_list[0], "testgame2 - Test Game 2");
     }
 }

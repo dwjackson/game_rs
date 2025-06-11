@@ -54,6 +54,10 @@ impl Game {
     pub fn has_tag(&self, tag: &str) -> bool {
         self.tags.iter().any(|t| t == tag)
     }
+
+    pub fn is_installed(&self) -> bool {
+        self.installed
+    }
 }
 
 pub enum GameError<'a> {
