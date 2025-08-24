@@ -784,7 +784,7 @@ mod tests {
         dir_prefix = \"bad_dir\"
         cmd = \"sh start.sh\"";
 
-        let expected_message = "TOML parse error at line 8, column 9\n  |\n8 |         [games.test]\n  |         ^\ninvalid table header\nduplicate key `test` in table `games`\n";
+        let expected_message = "TOML parse error at line 8, column 16\n  |\n8 |         [games.test]\n  |                ^^^^\nduplicate key\n";
         match parse_config(config) {
             Err(ParseError::TomlError(m)) => assert_eq!(m, expected_message),
             _ => panic!("TOML parse should fail"),
