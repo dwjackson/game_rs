@@ -3,6 +3,8 @@ use std::env;
 use std::path::Path;
 use std::process::Command;
 
+const EXIT_SUCCESS: i32 = 0;
+
 pub struct Game {
     pub id: String,
     pub name: String,
@@ -18,7 +20,7 @@ impl Game {
         format!("{} - {}", self.id, self.name)
     }
 
-    pub fn run(&self) -> Result<(), GameError> {
+    pub fn run<'a>(&'a self) -> Result<(), GameError<'a>> {
         if !self.installed {
             return Err(GameError::NotInstalled);
         }
@@ -37,7 +39,7 @@ impl Game {
         match command.status() {
             Ok(status) => {
                 if let Some(code) = status.code() {
-                    if code == 1 {
+                    if code != EXIT_SUCCESS {
                         let cmd = format!("{:?}", command);
                         return Err(GameError::CommandReturnedFailure(cmd));
                     }
