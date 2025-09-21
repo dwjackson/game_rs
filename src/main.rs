@@ -10,9 +10,9 @@ use game_builder::GameBuilder;
 mod parse_error;
 use parse_error::ParseError;
 
-use homedir::my_home;
 use std::collections::{HashMap, HashSet};
 use std::env;
+use std::env::home_dir;
 use std::fs;
 use std::path::Path;
 use toml::{Table, Value};
@@ -87,8 +87,8 @@ fn main() {
 }
 
 fn read_config() -> std::io::Result<String> {
-    let home_dir = my_home().expect("No home directory found").unwrap();
-    let config_path = Path::new(&home_dir).join(CONFIG_FILE_NAME);
+    let home = home_dir().unwrap();
+    let config_path = Path::new(&home).join(CONFIG_FILE_NAME);
     fs::read_to_string(&config_path)
 }
 
