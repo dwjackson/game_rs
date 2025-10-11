@@ -10,6 +10,9 @@ use game_builder::GameBuilder;
 mod parse_error;
 use parse_error::ParseError;
 
+mod tag;
+use tag::TagGroup;
+
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::env::home_dir;
@@ -168,10 +171,12 @@ fn list_games(games: &Games, args: &[String]) -> Vec<String> {
         .collect()
 }
 
-fn game_matches_tags(game: &Game, tag_groups: &[String]) -> bool {
-    tag_groups
+fn game_matches_tags(game: &Game, tag_groups_raw: &[String]) -> bool {
+    let tags: Vec<&str> = game.tags.iter().map(|t| t.as_str()).collect();
+    tag_groups_raw
         .iter()
-        .any(|tag_group| tag_group.split(',').all(|tag| game.has_tag(tag)))
+        .map(|g| TagGroup::parse(g))
+        .any(|tag_group| tag_group.matches(&tags))
 }
 
 fn command_tags<'a>(games: &Games, _args: &[String]) -> Result<(), GameError<'a>> {
@@ -397,11 +402,7 @@ fn parse_fps_limit<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBui
 
 fn parse_installed<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
     if let Some(Value::Boolean(b)) = game_config.get("installed") {
-        if !b {
-            builder.not_installed()
-        } else {
-            builder
-        }
+        if !b { builder.not_installed() } else { builder }
     } else {
         builder
     }
@@ -409,11 +410,7 @@ fn parse_installed<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBui
 
 fn parse_use_gamescope<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
     if let Some(Value::Boolean(b)) = game_config.get("use_gamescope") {
-        if *b {
-            builder.use_gamescope()
-        } else {
-            builder
-        }
+        if *b { builder.use_gamescope() } else { builder }
     } else {
         builder
     }
@@ -607,8 +604,6 @@ mod tests {
         let games = parse_config(config).expect("Bad config");
         let game = games.find("doom").unwrap();
         assert_eq!(game.tags, vec!["classic", "fps"]);
-        assert!(game.has_tag("fps"));
-        assert!(!game.has_tag("rpg"));
     }
 
     #[test]

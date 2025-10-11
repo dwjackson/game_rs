@@ -118,7 +118,7 @@ impl<'a> GameBuilder<'a> {
                     return Err(ParseError::NoSuchDirectoryPrefix(
                         self.id.clone(),
                         self.dir_prefix.clone(),
-                    ))
+                    ));
                 }
             }
         } else {
@@ -169,13 +169,11 @@ impl<'a> GameBuilder<'a> {
         };
 
         let mut env = self.env;
-        if use_mangohud {
-            if let Some(limit) = self.fps_limit {
-                env.insert(
-                    "MANGOHUD_CONFIG".to_string(),
-                    format!("fps_limit={}", limit),
-                );
-            }
+        if use_mangohud && let Some(limit) = self.fps_limit {
+            env.insert(
+                "MANGOHUD_CONFIG".to_string(),
+                format!("fps_limit={}", limit),
+            );
         }
 
         if !self.use_vk {

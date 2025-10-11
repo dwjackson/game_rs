@@ -38,11 +38,11 @@ impl Game {
         }
         match command.status() {
             Ok(status) => {
-                if let Some(code) = status.code() {
-                    if code != EXIT_SUCCESS {
-                        let cmd = format!("{:?}", command);
-                        return Err(GameError::CommandReturnedFailure(cmd));
-                    }
+                if let Some(code) = status.code()
+                    && code != EXIT_SUCCESS
+                {
+                    let cmd = format!("{:?}", command);
+                    return Err(GameError::CommandReturnedFailure(cmd));
                 }
             }
             Err(_) => {
@@ -51,10 +51,6 @@ impl Game {
         }
 
         Ok(())
-    }
-
-    pub fn has_tag(&self, tag: &str) -> bool {
-        self.tags.iter().any(|t| t == tag)
     }
 
     pub fn is_installed(&self) -> bool {

@@ -20,7 +20,8 @@ Note that tags cannot contain commas because if a comma is used with the list
 command, the strings delineated by the tags must _all_ match. Otherwise, any of
 the supplied tags must match. For example `doom,mod` would match anything
 tagged as _both_ `doom` and `mod` but `doom mod` would match anything tagged
-_either_ `doom` _or_ `mod`.
+_either_ `doom` _or_ `mod`. To match against the _lack_ of a tag, prefix the
+tag with a `!` like `!not_this_tag`.
 
 ## Configuration
 
