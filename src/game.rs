@@ -5,6 +5,7 @@ use std::process::Command;
 
 const EXIT_SUCCESS: i32 = 0;
 
+#[derive(Debug)]
 pub struct Game {
     pub id: String,
     pub name: String,

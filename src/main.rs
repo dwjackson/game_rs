@@ -1,6 +1,8 @@
 mod game;
 use game::{Game, GameError};
 
+use rand::prelude::*;
+
 mod settings;
 use settings::Settings;
 
@@ -121,6 +123,12 @@ fn initialize_commands() -> HashMap<&'static str, GameCommand> {
             exec: command_tags,
             desc: "List all tags",
         },
+        GameCommand {
+            cmd: "play-random",
+            args: vec!["TAGS"],
+            exec: command_play_random,
+            desc: "Play a random game",
+        },
     ];
     let mut commands: HashMap<&str, GameCommand> = HashMap::new();
     for c in cmds.into_iter() {
@@ -208,6 +216,11 @@ fn command_play<'a>(games: &'a Games, args: &'a [String]) -> Result<(), GameErro
     }
 }
 
+fn command_play_random<'a>(games: &'a Games, args: &'a [String]) -> Result<(), GameError<'a>> {
+    let game = games.random(args);
+    game.run()
+}
+
 struct Games {
     games: HashMap<String, Game>,
 }
@@ -215,6 +228,21 @@ struct Games {
 impl Games {
     fn find(&self, id: &str) -> Option<&Game> {
         self.games.get(id)
+    }
+
+    fn random(&self, args: &[String]) -> &Game {
+        let mut rng = rand::rng();
+        let installed_games = self.games.values().filter(|g| g.is_installed());
+        let matching_games: Vec<&Game> = if args.is_empty() {
+            installed_games.collect()
+        } else {
+            installed_games
+                .filter(|g| game_matches_tags(g, args))
+                .collect()
+        };
+        let games_count = matching_games.len();
+        let index = rng.random_range(0..games_count);
+        matching_games[index]
     }
 }
 
