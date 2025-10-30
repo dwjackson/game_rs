@@ -22,6 +22,8 @@ use std::fs;
 use std::path::Path;
 use toml::{Table, Value};
 
+use time::OffsetDateTime;
+
 const USAGE: &str = "USAGE: game [COMMAND]";
 const CONFIG_FILE_NAME: &str = "games.toml";
 const DEFAULT_WIDTH: u32 = 1280;
@@ -211,14 +213,38 @@ fn command_play<'a>(games: &'a Games, args: &'a [String]) -> Result<(), GameErro
     }
     let game_id = &args[0];
     match games.find(game_id) {
-        Some(game) => game.run(),
+        Some(game) => play_game(game),
         None => Err(GameError::NoSuchGame(game_id)),
     }
 }
 
 fn command_play_random<'a>(games: &'a Games, args: &'a [String]) -> Result<(), GameError<'a>> {
     let game = games.random(args);
-    game.run()
+    play_game(game)
+}
+
+fn play_game<'a>(game: &'a Game) -> Result<(), GameError<'a>> {
+    let start_time = OffsetDateTime::now_utc();
+    match game.run() {
+        Ok(_) => {
+            let end_time = OffsetDateTime::now_utc();
+            let duration = end_time - start_time;
+            let hours = duration.whole_hours();
+            let minutes = duration.whole_minutes() - hours * 60;
+            let seconds = duration.whole_seconds() - minutes * 60 - hours * 60 * 60;
+
+            println!("Game: {} ({})", game.name, game.id);
+            println!(
+                "Play Time: {}h{}m{}s ({}sec)",
+                hours,
+                minutes,
+                seconds,
+                duration.whole_seconds()
+            );
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
 }
 
 struct Games {
