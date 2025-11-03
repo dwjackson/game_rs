@@ -24,12 +24,17 @@ use toml::{Table, Value};
 
 use time::OffsetDateTime;
 
+mod stats;
+use stats::GameStats;
+
 const USAGE: &str = "USAGE: game [COMMAND]";
 const CONFIG_FILE_NAME: &str = "games.toml";
 const DEFAULT_WIDTH: u32 = 1280;
 const DEFAULT_HEIGHT: u32 = 720;
 const CONFIG_DIR: &str = ".config";
 const APP_NAME: &str = "game_rs";
+const DATA_DIR: &str = ".local/share/";
+const STATS_FILE: &str = "game_stats.tsv";
 
 type CommandHandler = for<'a> fn(games: &'a Games, args: &'a [String]) -> Result<(), GameError<'a>>;
 
@@ -46,6 +51,15 @@ fn main() {
         Ok(_) => (),
         Err(e) => {
             println!("Could not create config directory: {}", e);
+            std::process::exit(1);
+        }
+    }
+
+    // Create the necessary datadirectory if it doesn't already exist
+    match std::fs::create_dir_all(data_dir()) {
+        Ok(_) => (),
+        Err(e) => {
+            println!("Could not create data directory: {}", e);
             std::process::exit(1);
         }
     }
@@ -86,6 +100,9 @@ fn main() {
                     GameError::ExecutionFailed => println!("Could not execute game"),
                     GameError::NotInstalled => println!("Game is not installed"),
                     GameError::NoEditor => println!("No default editor in $EDITOR"),
+                    GameError::CouldNotWriteStats(s) => {
+                        println!("Could not write game stats: {}", s)
+                    }
                 }
                 std::process::exit(1);
             }
@@ -254,18 +271,65 @@ fn play_game<'a>(game: &'a Game) -> Result<(), GameError<'a>> {
             let minutes = duration.whole_minutes() - hours * 60;
             let seconds = duration.whole_seconds() - minutes * 60 - hours * 60 * 60;
 
+            let play_time = duration.whole_seconds() as u32;
+
             println!("Game: {} ({})", game.name, game.id);
             println!(
                 "Play Time: {}h{}m{}s ({}sec)",
-                hours,
-                minutes,
-                seconds,
-                duration.whole_seconds()
+                hours, minutes, seconds, play_time,
             );
-            Ok(())
+
+            // Update the stats file
+            let mut all_stats: Vec<GameStats> = Vec::new();
+            let mut found = false;
+            if let Ok(content) = read_stats() {
+                for line in content.lines() {
+                    if line.is_empty() {
+                        continue;
+                    }
+                    let mut stats = GameStats::from_tsv(line);
+                    if stats.id() == game.id {
+                        stats.add_time(play_time);
+                        stats.update_last_played_time(start_time);
+                        found = true;
+                    }
+                    all_stats.push(stats);
+                }
+            }
+
+            if !found {
+                let stats = GameStats::new(game.id.clone(), play_time, start_time);
+                all_stats.push(stats);
+            }
+
+            let mut updated_stats = all_stats
+                .iter()
+                .map(|stats| stats.to_tsv())
+                .collect::<Vec<String>>()
+                .join("\n");
+            updated_stats.push('\n');
+            let updated_stats = updated_stats;
+
+            match fs::write(stats_file_path(), updated_stats) {
+                Ok(_) => Ok(()),
+                Err(e) => Err(GameError::CouldNotWriteStats(e.to_string())),
+            }
         }
         Err(e) => Err(e),
     }
+}
+
+fn read_stats() -> std::io::Result<String> {
+    let file_path = stats_file_path();
+    fs::read_to_string(&file_path)
+}
+
+fn stats_file_path() -> PathBuf {
+    data_dir().join(STATS_FILE)
+}
+
+fn data_dir() -> PathBuf {
+    home_dir().unwrap().join(DATA_DIR).join(APP_NAME)
 }
 
 fn command_edit<'a>(_: &'a Games, _: &'a [String]) -> Result<(), GameError<'a>> {
