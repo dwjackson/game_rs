@@ -17,7 +17,7 @@ use tag::TagGroup;
 
 use std::collections::{HashMap, HashSet};
 use std::env;
-use std::env::home_dir;
+use std::env::{home_dir, var};
 use std::fs;
 use std::path::PathBuf;
 use toml::{Table, Value};
@@ -85,6 +85,7 @@ fn main() {
                     GameError::CommandReturnedFailure(cmd) => println!("Command failed: {}", cmd),
                     GameError::ExecutionFailed => println!("Could not execute game"),
                     GameError::NotInstalled => println!("Game is not installed"),
+                    GameError::NoEditor => println!("No default editor in $EDITOR"),
                 }
                 std::process::exit(1);
             }
@@ -144,6 +145,12 @@ fn initialize_commands() -> HashMap<&'static str, GameCommand> {
             args: vec!["TAGS"],
             exec: command_play_random,
             desc: "Play a random game",
+        },
+        GameCommand {
+            cmd: "edit",
+            args: Vec::new(),
+            exec: command_edit,
+            desc: "Edit the config file",
         },
     ];
     let mut commands: HashMap<&str, GameCommand> = HashMap::new();
@@ -258,6 +265,20 @@ fn play_game<'a>(game: &'a Game) -> Result<(), GameError<'a>> {
             Ok(())
         }
         Err(e) => Err(e),
+    }
+}
+
+fn command_edit<'a>(_: &'a Games, _: &'a [String]) -> Result<(), GameError<'a>> {
+    let config_file_path = config_dir().join(CONFIG_FILE_NAME);
+    match var("EDITOR") {
+        Ok(editor) => {
+            std::process::Command::new(editor)
+                .arg(&config_file_path)
+                .status()
+                .expect("Could nolt edit config file");
+            Ok(())
+        }
+        Err(_) => Err(GameError::NoEditor),
     }
 }
 
