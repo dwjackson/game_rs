@@ -19,7 +19,7 @@ use std::collections::{HashMap, HashSet};
 use std::env;
 use std::env::home_dir;
 use std::fs;
-use std::path::Path;
+use std::path::PathBuf;
 use toml::{Table, Value};
 
 use time::OffsetDateTime;
@@ -28,6 +28,8 @@ const USAGE: &str = "USAGE: game [COMMAND]";
 const CONFIG_FILE_NAME: &str = "games.toml";
 const DEFAULT_WIDTH: u32 = 1280;
 const DEFAULT_HEIGHT: u32 = 720;
+const CONFIG_DIR: &str = ".config";
+const APP_NAME: &str = "game_rs";
 
 type CommandHandler = for<'a> fn(games: &'a Games, args: &'a [String]) -> Result<(), GameError<'a>>;
 
@@ -39,11 +41,20 @@ struct GameCommand {
 }
 
 fn main() {
+    // Create the necessary config directory if it doesn't already exist
+    match std::fs::create_dir_all(config_dir()) {
+        Ok(_) => (),
+        Err(e) => {
+            println!("Could not create config directory: {}", e);
+            std::process::exit(1);
+        }
+    }
+
     let config_contents_result = read_config();
     if config_contents_result.is_err() {
         println!(
-            "Error: No {} config file found in home directory",
-            CONFIG_FILE_NAME
+            "Error: No {} config file found (expected at $HOME/{}/{}/{})",
+            CONFIG_FILE_NAME, CONFIG_DIR, APP_NAME, CONFIG_FILE_NAME
         );
         std::process::exit(1);
     }
@@ -93,9 +104,12 @@ fn main() {
     }
 }
 
+fn config_dir() -> PathBuf {
+    home_dir().unwrap().join(CONFIG_DIR).join(APP_NAME)
+}
+
 fn read_config() -> std::io::Result<String> {
-    let home = home_dir().unwrap();
-    let config_path = Path::new(&home).join(CONFIG_FILE_NAME);
+    let config_path = config_dir().join(CONFIG_FILE_NAME);
     fs::read_to_string(&config_path)
 }
 

@@ -26,8 +26,7 @@ tag with a `!` like `!not_this_tag`.
 
 ## Configuration
 
-The configuration file must be in the user's home directory and must be called
-`games.toml`. 
+The configuration file must be at `$HOME/.config/game_rs/games.toml`.
 
 ### Settings
 
