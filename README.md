@@ -10,6 +10,7 @@ via the `game` executable.
 
 ## Commands
 
+* `edit` - edit the game configuration file using the default `$EDITOR`
 * `help` - explain all commands
 * `list` - list all known games
 * `list [TAGS...]` - list all games having a given tag
