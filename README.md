@@ -15,6 +15,7 @@ via the `game` executable.
 * `list [TAGS...]` - list all games having a given tag
 * `play [GAME_ID]` - play the game with the given ID
 * `play-random [TAGS]` - play a random game that matches the given tags
+* `stats [GAME_ID]` - display play statistics about the given game
 * `tags` - list all tags
 
 Note that tags cannot contain commas because if a comma is used with the list

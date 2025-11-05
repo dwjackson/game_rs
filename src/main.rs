@@ -169,6 +169,12 @@ fn initialize_commands() -> HashMap<&'static str, GameCommand> {
             exec: command_edit,
             desc: "Edit the config file",
         },
+        GameCommand {
+            cmd: "stats",
+            args: vec!["GAME_ID"],
+            exec: command_stats,
+            desc: "Show game statistics",
+        },
     ];
     let mut commands: HashMap<&str, GameCommand> = HashMap::new();
     for c in cmds.into_iter() {
@@ -319,6 +325,23 @@ fn play_game<'a>(game: &'a Game) -> Result<(), GameError<'a>> {
     }
 }
 
+fn find_game_stats(game: &Game) -> Option<GameStats> {
+    if let Ok(content) = read_stats() {
+        for line in content.lines() {
+            if line.is_empty() {
+                continue;
+            }
+            let stats = GameStats::from_tsv(line);
+            if stats.id() == game.id {
+                return Some(stats);
+            }
+        }
+        None
+    } else {
+        None
+    }
+}
+
 fn read_stats() -> std::io::Result<String> {
     let file_path = stats_file_path();
     fs::read_to_string(&file_path)
@@ -343,6 +366,28 @@ fn command_edit<'a>(_: &'a Games, _: &'a [String]) -> Result<(), GameError<'a>> 
             Ok(())
         }
         Err(_) => Err(GameError::NoEditor),
+    }
+}
+
+fn command_stats<'a>(games: &'a Games, args: &'a [String]) -> Result<(), GameError<'a>> {
+    if args.is_empty() {
+        return Err(GameError::NoGameId);
+    }
+    let game_id = &args[0];
+    match games.find(game_id) {
+        Some(game) => match find_game_stats(game) {
+            Some(stats) => {
+                println!("{} ({}) Statistics", game.name, game.id);
+                println!("Play Time: {}", stats.format_play_time());
+                println!("Last Played: {}", stats.format_last_played_time());
+                Ok(())
+            }
+            None => {
+                println!("No stats found");
+                Ok(())
+            }
+        },
+        None => Err(GameError::NoSuchGame(game_id)),
     }
 }
 

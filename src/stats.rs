@@ -67,6 +67,37 @@ impl GameStats {
             last_played_time,
         }
     }
+
+    pub fn format_play_time(&self) -> String {
+        let seconds_per_hour = 60 * 60;
+
+        let pt = self.play_time_seconds;
+        let hours = pt / seconds_per_hour;
+        let minutes = (pt - hours * seconds_per_hour) / 60;
+        let seconds = pt - hours * seconds_per_hour - minutes * 60;
+        let mut formatted = String::new();
+        if hours > 0 {
+            let hours_string = format!("{}h", hours);
+            formatted.push_str(&hours_string);
+        }
+        if minutes > 0 {
+            let minutes_string = format!("{}m", minutes);
+            formatted.push_str(&minutes_string);
+        }
+        if seconds > 0 {
+            let seconds_string = format!("{}s", seconds);
+            formatted.push_str(&seconds_string);
+        }
+        formatted
+    }
+
+    pub fn format_last_played_time(&self) -> String {
+        let play_time_format =
+            time::format_description::parse(TIMESTAMP_FORMAT).expect("Bad format");
+        self.last_played_time
+            .format(&play_time_format)
+            .expect("Bad format")
+    }
 }
 
 #[cfg(test)]
@@ -125,5 +156,35 @@ mod tests {
         let offset = time::UtcOffset::current_local_offset().expect("No current offset");
         let last_played_time = OffsetDateTime::new_in_offset(date, time, offset);
         assert_eq!(stats.last_played_time, last_played_time);
+    }
+
+    #[test]
+    fn test_format_play_time() {
+        let stats = GameStats {
+            id: "testgame".to_string(),
+            play_time_seconds: 90 * 60 + 15,
+            last_played_time: OffsetDateTime::now_local().unwrap(),
+        };
+        let s = stats.format_play_time();
+        assert_eq!(s, "1h30m15s");
+    }
+
+    #[test]
+    fn test_format_play_time_with_only_minutes() {
+        let stats = GameStats {
+            id: "testgame".to_string(),
+            play_time_seconds: 45 * 60,
+            last_played_time: OffsetDateTime::now_local().unwrap(),
+        };
+        let s = stats.format_play_time();
+        assert_eq!(s, "45m");
+    }
+
+    #[test]
+    fn test_format_last_played_time() {
+        let line = "testgame\t5400\t2025-11-03 19:07:00";
+        let stats = GameStats::from_tsv(line);
+        let s = stats.format_last_played_time();
+        assert_eq!(s, "2025-11-03 19:07:00");
     }
 }
