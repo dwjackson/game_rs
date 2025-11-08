@@ -1,15 +1,27 @@
-use time::{OffsetDateTime, UtcOffset};
+use time::{UtcDateTime, UtcOffset};
 
 const TIMESTAMP_FORMAT: &str = "[year]-[month]-[day] [hour]:[minute]:[second]";
+
+fn format_utc(utc_date_time: UtcDateTime) -> String {
+    let time_format = time::format_description::parse(TIMESTAMP_FORMAT).expect("Bad format");
+    utc_date_time.format(&time_format).expect("Bad format")
+}
+
+fn format_local(utc_date_time: UtcDateTime) -> String {
+    let time_format = time::format_description::parse(TIMESTAMP_FORMAT).expect("Bad format");
+    let offset = UtcOffset::current_local_offset().unwrap();
+    let local_date_time = utc_date_time.to_offset(offset);
+    local_date_time.format(&time_format).unwrap()
+}
 
 pub struct GameStats {
     id: String,
     play_time_seconds: u32,
-    last_played_time: OffsetDateTime,
+    last_played_time: UtcDateTime,
 }
 
 impl GameStats {
-    pub fn new(id: String, play_time_seconds: u32, last_played_time: OffsetDateTime) -> GameStats {
+    pub fn new(id: String, play_time_seconds: u32, last_played_time: UtcDateTime) -> GameStats {
         GameStats {
             id,
             play_time_seconds,
@@ -25,20 +37,16 @@ impl GameStats {
         self.play_time_seconds = self.play_time_seconds.strict_add(seconds);
     }
 
-    pub fn update_last_played_time(&mut self, date_time: OffsetDateTime) {
+    pub fn update_last_played_time(&mut self, date_time: UtcDateTime) {
         self.last_played_time = date_time;
     }
 
     pub fn to_tsv(&self) -> String {
-        let play_time_format =
-            time::format_description::parse(TIMESTAMP_FORMAT).expect("Bad format");
         format!(
             "{}\t{}\t{}",
             self.id,
             self.play_time_seconds,
-            self.last_played_time
-                .format(&play_time_format)
-                .expect("Bad format")
+            format_utc(self.last_played_time)
         )
     }
 
@@ -59,8 +67,7 @@ impl GameStats {
             time::Date::from_calendar_date(year, time::Month::January.nth_next(month - 1), day)
                 .expect("Bad date");
         let time = time::Time::from_hms(hour, minute, second).expect("Bad time");
-        let offset = UtcOffset::current_local_offset().expect("Bad offset");
-        let last_played_time = OffsetDateTime::new_in_offset(date, time, offset);
+        let last_played_time = UtcDateTime::new(date, time);
         GameStats {
             id: parts[0].to_string(),
             play_time_seconds: parts[1].parse::<u32>().expect("Bad play time"),
@@ -73,11 +80,7 @@ impl GameStats {
     }
 
     pub fn format_last_played_time(&self) -> String {
-        let play_time_format =
-            time::format_description::parse(TIMESTAMP_FORMAT).expect("Bad format");
-        self.last_played_time
-            .format(&play_time_format)
-            .expect("Bad format")
+        format_local(self.last_played_time)
     }
 
     pub fn play_time_seconds(&self) -> u32 {
@@ -116,7 +119,7 @@ mod tests {
         let mut stats = GameStats {
             id: "testgame".to_string(),
             play_time_seconds: 90 * 60,
-            last_played_time: OffsetDateTime::now_utc(),
+            last_played_time: UtcDateTime::now(),
         };
         stats.add_time(75 * 60);
         assert_eq!(stats.play_time_seconds, 90 * 60 + 75 * 60);
@@ -127,9 +130,9 @@ mod tests {
         let mut stats = GameStats {
             id: "testgame".to_string(),
             play_time_seconds: 90 * 60,
-            last_played_time: OffsetDateTime::now_utc(),
+            last_played_time: UtcDateTime::now(),
         };
-        let t = OffsetDateTime::from_unix_timestamp(1762214646).expect("bad timestamp");
+        let t = UtcDateTime::from_unix_timestamp(1762214646).expect("bad timestamp");
         stats.update_last_played_time(t);
         assert_eq!(stats.last_played_time, t);
     }
@@ -139,8 +142,7 @@ mod tests {
         let date =
             time::Date::from_calendar_date(2025, time::Month::November, 3).expect("Bad date");
         let time = time::Time::from_hms(19, 7, 0).expect("Bad time");
-        let offset = time::UtcOffset::UTC;
-        let last_played_time = OffsetDateTime::new_in_offset(date, time, offset);
+        let last_played_time = UtcDateTime::new(date, time);
         let stats = GameStats {
             id: "testgame".to_string(),
             play_time_seconds: 90 * 60,
@@ -160,8 +162,7 @@ mod tests {
         let date =
             time::Date::from_calendar_date(2025, time::Month::November, 3).expect("Bad date");
         let time = time::Time::from_hms(19, 7, 0).expect("Bad time");
-        let offset = time::UtcOffset::current_local_offset().expect("No current offset");
-        let last_played_time = OffsetDateTime::new_in_offset(date, time, offset);
+        let last_played_time = UtcDateTime::new(date, time);
         assert_eq!(stats.last_played_time, last_played_time);
     }
 
@@ -170,7 +171,7 @@ mod tests {
         let stats = GameStats {
             id: "testgame".to_string(),
             play_time_seconds: 90 * 60 + 15,
-            last_played_time: OffsetDateTime::now_local().unwrap(),
+            last_played_time: UtcDateTime::now(),
         };
         let s = stats.format_play_time();
         assert_eq!(s, "1h30m15s");
@@ -181,17 +182,28 @@ mod tests {
         let stats = GameStats {
             id: "testgame".to_string(),
             play_time_seconds: 45 * 60,
-            last_played_time: OffsetDateTime::now_local().unwrap(),
+            last_played_time: UtcDateTime::now(),
         };
         let s = stats.format_play_time();
         assert_eq!(s, "45m");
     }
 
     #[test]
-    fn test_format_last_played_time() {
+    fn test_format_last_played_time_in_local_time() {
+        // Saved time is UTC
         let line = "testgame\t5400\t2025-11-03 19:07:00";
         let stats = GameStats::from_tsv(line);
         let s = stats.format_last_played_time();
-        assert_eq!(s, "2025-11-03 19:07:00");
+
+        let date = time::Date::from_calendar_date(2025, time::Month::November, 3).unwrap();
+        let time = time::Time::from_hms(19, 7, 0).expect("Bad time");
+        let utc_date_time = UtcDateTime::new(date, time);
+        let offset = UtcOffset::current_local_offset().unwrap();
+        let local_date_time = utc_date_time.to_offset(offset);
+
+        const TIMESTAMP_FORMAT: &str = "[year]-[month]-[day] [hour]:[minute]:[second]";
+        let time_format = time::format_description::parse(TIMESTAMP_FORMAT).expect("Bad format");
+        let expected = local_date_time.format(&time_format).unwrap();
+        assert_eq!(s, expected);
     }
 }

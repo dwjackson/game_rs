@@ -22,7 +22,7 @@ use std::fs;
 use std::path::PathBuf;
 use toml::{Table, Value};
 
-use time::OffsetDateTime;
+use time::UtcDateTime;
 
 mod stats;
 use stats::GameStats;
@@ -268,10 +268,10 @@ fn command_play_random<'a>(games: &'a Games, args: &'a [String]) -> Result<(), G
 }
 
 fn play_game<'a>(game: &'a Game) -> Result<(), GameError<'a>> {
-    let start_time = OffsetDateTime::now_utc();
+    let start_time = UtcDateTime::now();
     match game.run() {
         Ok(_) => {
-            let end_time = OffsetDateTime::now_utc();
+            let end_time = UtcDateTime::now();
             let duration = end_time - start_time;
             let hours = duration.whole_hours();
             let minutes = duration.whole_minutes() - hours * 60;
