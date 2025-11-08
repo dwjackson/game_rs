@@ -69,26 +69,7 @@ impl GameStats {
     }
 
     pub fn format_play_time(&self) -> String {
-        let seconds_per_hour = 60 * 60;
-
-        let pt = self.play_time_seconds;
-        let hours = pt / seconds_per_hour;
-        let minutes = (pt - hours * seconds_per_hour) / 60;
-        let seconds = pt - hours * seconds_per_hour - minutes * 60;
-        let mut formatted = String::new();
-        if hours > 0 {
-            let hours_string = format!("{}h", hours);
-            formatted.push_str(&hours_string);
-        }
-        if minutes > 0 {
-            let minutes_string = format!("{}m", minutes);
-            formatted.push_str(&minutes_string);
-        }
-        if seconds > 0 {
-            let seconds_string = format!("{}s", seconds);
-            formatted.push_str(&seconds_string);
-        }
-        formatted
+        format_play_time(self.play_time_seconds)
     }
 
     pub fn format_last_played_time(&self) -> String {
@@ -98,6 +79,32 @@ impl GameStats {
             .format(&play_time_format)
             .expect("Bad format")
     }
+
+    pub fn play_time_seconds(&self) -> u32 {
+        self.play_time_seconds
+    }
+}
+
+pub fn format_play_time(play_time_seconds: u32) -> String {
+    let seconds_per_hour = 60 * 60;
+
+    let hours = play_time_seconds / seconds_per_hour;
+    let minutes = (play_time_seconds - hours * seconds_per_hour) / 60;
+    let seconds = play_time_seconds - hours * seconds_per_hour - minutes * 60;
+    let mut formatted = String::new();
+    if hours > 0 {
+        let hours_string = format!("{}h", hours);
+        formatted.push_str(&hours_string);
+    }
+    if minutes > 0 {
+        let minutes_string = format!("{}m", minutes);
+        formatted.push_str(&minutes_string);
+    }
+    if seconds > 0 {
+        let seconds_string = format!("{}s", seconds);
+        formatted.push_str(&seconds_string);
+    }
+    formatted
 }
 
 #[cfg(test)]

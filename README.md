@@ -13,10 +13,10 @@ via the `game` executable.
 * `edit` - edit the game configuration file using the default `$EDITOR`
 * `help` - explain all commands
 * `list` - list all known games
-* `list [TAGS...]` - list all games having a given tag
+* `list [TAGS...]` - list all games having a given tag (or game ID)
 * `play [GAME_ID]` - play the game with the given ID
 * `play-random [TAGS]` - play a random game that matches the given tags
-* `stats [GAME_ID]` - display play statistics about the given game
+* `stats [GAME_ID...]` - display play statistics about the given game(s)
 * `tags` - list all tags
 
 Note that tags cannot contain commas because if a comma is used with the list

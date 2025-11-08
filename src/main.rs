@@ -230,7 +230,7 @@ fn game_matches_tags(game: &Game, tag_groups_raw: &[String]) -> bool {
     tag_groups_raw
         .iter()
         .map(|g| TagGroup::parse(g))
-        .any(|tag_group| tag_group.matches(&tags))
+        .any(|tag_group| tag_group.matches(&tags) || tag_group.matches(&[game.id.as_str()]))
 }
 
 fn command_tags<'a>(games: &Games, _args: &[String]) -> Result<(), GameError<'a>> {
@@ -373,22 +373,39 @@ fn command_stats<'a>(games: &'a Games, args: &'a [String]) -> Result<(), GameErr
     if args.is_empty() {
         return Err(GameError::NoGameId);
     }
-    let game_id = &args[0];
-    match games.find(game_id) {
-        Some(game) => match find_game_stats(game) {
-            Some(stats) => {
-                println!("{} ({}) Statistics", game.name, game.id);
-                println!("Play Time: {}", stats.format_play_time());
-                println!("Last Played: {}", stats.format_last_played_time());
-                Ok(())
-            }
+    let mut total_seconds = 0;
+    let mut count = 0;
+    let game_tags = args;
+    for game_id in game_tags.iter() {
+        match games.find(game_id) {
+            Some(game) => match find_game_stats(game) {
+                Some(stats) => {
+                    count += 1;
+                    total_seconds += stats.play_time_seconds();
+                    if count > 1 {
+                        println!();
+                    }
+                    println!("{} ({}) Statistics", game.name, game.id);
+                    println!("Play Time: {}", stats.format_play_time());
+                    println!("Last Played: {}", stats.format_last_played_time());
+                }
+                None => {
+                    if game_tags.len() == 1 {
+                        println!("No stats found");
+                    }
+                }
+            },
             None => {
-                println!("No stats found");
-                Ok(())
+                return Err(GameError::NoSuchGame(game_id));
             }
-        },
-        None => Err(GameError::NoSuchGame(game_id)),
+        }
     }
+    if count > 1 {
+        let formatted_play_time = stats::format_play_time(total_seconds);
+        println!();
+        println!("Total Play Time: {}", formatted_play_time);
+    }
+    Ok(())
 }
 
 struct Games {
@@ -1123,5 +1140,20 @@ mod tests {
         let game_list = list_games(&games, &[String::new(); 0]);
         assert_eq!(game_list.len(), 1);
         assert_eq!(&game_list[0], "testgame2 - Test Game 2");
+    }
+
+    #[test]
+    fn test_game_whose_title_matches_the_tag_is_included_in_matches() {
+        let game = Game {
+            id: "test_game".to_string(),
+            name: "Test Game".to_string(),
+            dir: None,
+            command: vec!["test_game".to_string()],
+            env: HashMap::new(),
+            tags: vec!["tag1".to_string(), "tag2".to_string()],
+            installed: true,
+        };
+        let tags = vec!["test_game".to_string()];
+        assert!(game_matches_tags(&game, &tags));
     }
 }
