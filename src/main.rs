@@ -375,8 +375,8 @@ fn command_stats<'a>(games: &'a Games, args: &'a [String]) -> Result<(), GameErr
     }
     let mut total_seconds = 0;
     let mut count = 0;
-    let game_tags = args;
-    for game_id in game_tags.iter() {
+    let game_ids = args;
+    for game_id in game_ids.iter() {
         match games.find(game_id) {
             Some(game) => match find_game_stats(game) {
                 Some(stats) => {
@@ -390,7 +390,7 @@ fn command_stats<'a>(games: &'a Games, args: &'a [String]) -> Result<(), GameErr
                     println!("Last Played: {}", stats.format_last_played_time());
                 }
                 None => {
-                    if game_tags.len() == 1 {
+                    if game_ids.len() == 1 {
                         println!("No stats found");
                     }
                 }
