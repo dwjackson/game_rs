@@ -67,6 +67,7 @@ variable that should be set before running the game
 * `prefix_dir` - the key of the entry in the `[directories]` table that is the
 parent directory of the `dir`
 * `scummvm_id` - the ScummVM target ID of the game to launch
+* `steam_id` - the Steam App ID of the game to launch
 * `tags` - a list of tags (strings) used when listing games
 * `use_mangohud` - boolean to control use of mangohud, true by default for wine
 * `use_vk` - boolean to control use of dxvk/vkd3d, true by default
