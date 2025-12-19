@@ -20,6 +20,7 @@ pub struct GameBuilder<'a> {
     use_gamescope: bool,
     use_vk: bool,
     installed: bool,
+    is_steam: bool,
 }
 
 impl<'a> GameBuilder<'a> {
@@ -39,6 +40,7 @@ impl<'a> GameBuilder<'a> {
             use_gamescope: false,
             use_vk: true,
             installed: true,
+            is_steam: false,
         }
     }
 
@@ -101,6 +103,15 @@ impl<'a> GameBuilder<'a> {
         self
     }
 
+    pub fn steam_id(mut self, steam_game_id: &str) -> Self {
+        let cmd = vec![
+            "steam".to_string(),
+            format!("steam://rungameid/{}", steam_game_id),
+        ];
+        self.is_steam = true;
+        self.command(cmd)
+    }
+
     pub fn build(self) -> Result<Game, ParseError> {
         if self.name.is_none() {
             return Err(ParseError::MissingName(self.id.clone()));
@@ -139,7 +150,9 @@ impl<'a> GameBuilder<'a> {
         let use_mangohud = self.use_mangohud.is_some() && self.use_mangohud.unwrap()
             || self.use_mangohud.is_none() && is_wine;
 
-        let command = if self.settings.use_gamescope {
+        let command = if self.is_steam {
+            self.command
+        } else if self.settings.use_gamescope {
             let cmd = format!(
                 "gamescope -W {} -H {} -f --force-grab-cursor",
                 self.settings.width, self.settings.height

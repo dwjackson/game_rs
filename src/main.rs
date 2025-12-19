@@ -641,11 +641,7 @@ fn parse_use_vk<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilde
 
 fn parse_steam_id<'a>(builder: GameBuilder<'a>, game_config: &Table) -> GameBuilder<'a> {
     if let Some(Value::String(steam_game_id)) = game_config.get("steam_id") {
-        let cmd = vec![
-            "steam".to_string(),
-            format!("steam://rungameid/{}", steam_game_id),
-        ];
-        builder.command(cmd)
+        builder.steam_id(steam_game_id)
     } else {
         builder
     }
@@ -1173,6 +1169,38 @@ mod tests {
     #[test]
     fn test_steam_game() {
         let config = "[games]\n[games.hades2]\nname = \"Hades II\"\nsteam_id=\"1145350\"";
+        let games = parse_config(config).expect("Bad config");
+        let game = games.find("hades2").unwrap();
+        assert_eq!(game.command, vec!["steam", "steam://rungameid/1145350"]);
+    }
+
+    #[test]
+    fn test_steam_game_does_not_use_gamescope() {
+        let config = "
+        [settings]
+        width = 1920
+        height = 1080
+        use_gamescope = true
+
+        [games]
+        [games.hades2]
+        name = \"Hades II\"
+        steam_id=\"1145350\"";
+
+        let games = parse_config(config).expect("Bad config");
+        let game = games.find("hades2").unwrap();
+        assert_eq!(game.command, vec!["steam", "steam://rungameid/1145350"]);
+    }
+
+    #[test]
+    fn test_steam_game_does_not_use_mangohud() {
+        let config = "
+        [games]
+        [games.hades2]
+        use_mangohud = true
+        name = \"Hades II\"
+        steam_id=\"1145350\"";
+
         let games = parse_config(config).expect("Bad config");
         let game = games.find("hades2").unwrap();
         assert_eq!(game.command, vec!["steam", "steam://rungameid/1145350"]);
