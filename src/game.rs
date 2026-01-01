@@ -66,6 +66,5 @@ pub enum GameError<'a> {
     CommandReturnedFailure(String),
     ExecutionFailed,
     NotInstalled,
-    NoEditor,
     CouldNotWriteStats(String),
 }

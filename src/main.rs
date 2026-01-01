@@ -36,7 +36,19 @@ const APP_NAME: &str = "game_rs";
 const DATA_DIR: &str = ".local/share/";
 const STATS_FILE: &str = "game_stats.tsv";
 
-type CommandHandler = for<'a> fn(games: &'a Games, args: &'a [String]) -> Result<(), GameError<'a>>;
+enum UtilityCommandError {
+    NoEditor,
+}
+
+enum CommandHandler {
+    Utility(UtilityCommandHandler),
+    Config(ConfigCommandHandler),
+}
+
+type UtilityCommandHandler = fn(args: &[String]) -> Result<(), UtilityCommandError>;
+
+type ConfigCommandHandler =
+    for<'a> fn(games: &'a Games, args: &'a [String]) -> Result<(), GameError<'a>>;
 
 struct GameCommand {
     cmd: &'static str,
@@ -64,6 +76,35 @@ fn main() {
         }
     }
 
+    let args: Vec<String> = env::args().collect();
+    let commands = initialize_commands();
+
+    if args.len() < 2 {
+        println!("{}", USAGE);
+        std::process::exit(1);
+    }
+    let cmd = args[1].as_str();
+    if !commands.contains_key(cmd) {
+        println!("Unrecognized command: {}", cmd);
+        std::process::exit(1);
+    }
+    let command = &commands[cmd];
+
+    match command.exec {
+        CommandHandler::Utility(handler) => handle_utility_command(handler, &args),
+        CommandHandler::Config(handler) => handle_config_file_command(handler, &args),
+    }
+}
+
+fn handle_utility_command(handler: UtilityCommandHandler, args: &[String]) {
+    if let Err(e) = handler(args) {
+        match e {
+            UtilityCommandError::NoEditor => println!("No default editor in $EDITOR"),
+        }
+    }
+}
+
+fn handle_config_file_command(handler: ConfigCommandHandler, args: &[String]) {
     let config_contents_result = read_config();
     if config_contents_result.is_err() {
         println!(
@@ -74,39 +115,22 @@ fn main() {
     }
     let config_contents = config_contents_result.unwrap();
     match parse_config(&config_contents) {
-        Ok(games) => {
-            let args: Vec<String> = env::args().collect();
-            let commands = initialize_commands();
-
-            if args.len() < 2 {
-                println!("{}", USAGE);
-                std::process::exit(1);
-            }
-            let cmd = args[1].as_str();
-            if !commands.contains_key(cmd) {
-                println!("Unrecognized command: {}", cmd);
-                std::process::exit(1);
-            }
-            let command = &commands[cmd];
-            let handle = command.exec;
-            if let Err(e) = handle(&games, &args[2..]) {
-                match e {
-                    GameError::NoGameId => println!("A game ID is required"),
-                    GameError::CouldNotChangeDirectory(dir) => {
-                        println!("Could not change directory to: {}", dir)
-                    }
-                    GameError::NoSuchGame(game_id) => println!("No such game: {}", game_id),
-                    GameError::CommandReturnedFailure(cmd) => println!("Command failed: {}", cmd),
-                    GameError::ExecutionFailed => println!("Could not execute game"),
-                    GameError::NotInstalled => println!("Game is not installed"),
-                    GameError::NoEditor => println!("No default editor in $EDITOR"),
-                    GameError::CouldNotWriteStats(s) => {
-                        println!("Could not write game stats: {}", s)
-                    }
+        Ok(games) => match handler(&games, &args[2..]) {
+            Ok(()) => (),
+            Err(e) => match e {
+                GameError::NoGameId => println!("A game ID is required"),
+                GameError::CouldNotChangeDirectory(dir) => {
+                    println!("Could not change directory to: {}", dir)
                 }
-                std::process::exit(1);
-            }
-        }
+                GameError::NoSuchGame(game_id) => println!("No such game: {}", game_id),
+                GameError::CommandReturnedFailure(cmd) => println!("Command failed: {}", cmd),
+                GameError::ExecutionFailed => println!("Could not execute game"),
+                GameError::NotInstalled => println!("Game is not installed"),
+                GameError::CouldNotWriteStats(s) => {
+                    println!("Could not write game stats: {}", s)
+                }
+            },
+        },
         Err(e) => match e {
             ParseError::MissingName(id) => println!("Game missing name: {}", id),
             ParseError::MissingCommand(id) => println!("Game missing cmd: {}", id),
@@ -117,7 +141,9 @@ fn main() {
                 game_id, prefix
             ),
             ParseError::TomlError(message) => println!("{}", message),
-            ParseError::UnrecognizedOption(option) => println!("Unrecognized option: {}", option),
+            ParseError::UnrecognizedOption(option) => {
+                println!("Unrecognized option: {}", option)
+            }
         },
     }
 }
@@ -136,43 +162,43 @@ fn initialize_commands() -> HashMap<&'static str, GameCommand> {
         GameCommand {
             cmd: "help",
             args: Vec::new(),
-            exec: command_help,
+            exec: CommandHandler::Utility(command_help),
             desc: "Explain the commands",
         },
         GameCommand {
             cmd: "list",
             args: vec!["TAG?"],
-            exec: command_list,
+            exec: CommandHandler::Config(command_list),
             desc: "List games in the format \"game_id - name\"",
         },
         GameCommand {
             cmd: "play",
             args: vec!["GAME_ID"],
-            exec: command_play,
+            exec: CommandHandler::Config(command_play),
             desc: "Play a game, specified by its game ID",
         },
         GameCommand {
             cmd: "tags",
             args: Vec::new(),
-            exec: command_tags,
+            exec: CommandHandler::Config(command_tags),
             desc: "List all tags",
         },
         GameCommand {
             cmd: "play-random",
             args: vec!["TAGS"],
-            exec: command_play_random,
+            exec: CommandHandler::Config(command_play_random),
             desc: "Play a random game",
         },
         GameCommand {
             cmd: "edit",
             args: Vec::new(),
-            exec: command_edit,
+            exec: CommandHandler::Utility(command_edit),
             desc: "Edit the config file",
         },
         GameCommand {
             cmd: "stats",
             args: vec!["GAME_ID"],
-            exec: command_stats,
+            exec: CommandHandler::Config(command_stats),
             desc: "Show game statistics",
         },
     ];
@@ -183,7 +209,7 @@ fn initialize_commands() -> HashMap<&'static str, GameCommand> {
     commands
 }
 
-fn command_help<'a>(_games: &Games, _args: &[String]) -> Result<(), GameError<'a>> {
+fn command_help(_args: &[String]) -> Result<(), UtilityCommandError> {
     let commands_hash = initialize_commands();
     let mut commands: Vec<&GameCommand> = commands_hash.values().collect();
     commands.sort_by(|a, b| a.cmd.cmp(b.cmd));
@@ -355,7 +381,7 @@ fn data_dir() -> PathBuf {
     home_dir().unwrap().join(DATA_DIR).join(APP_NAME)
 }
 
-fn command_edit<'a>(_: &'a Games, _: &'a [String]) -> Result<(), GameError<'a>> {
+fn command_edit(_: &[String]) -> Result<(), UtilityCommandError> {
     let config_file_path = config_dir().join(CONFIG_FILE_NAME);
     match var("EDITOR") {
         Ok(editor) => {
@@ -365,11 +391,11 @@ fn command_edit<'a>(_: &'a Games, _: &'a [String]) -> Result<(), GameError<'a>> 
                 .expect("Could nolt edit config file");
             Ok(())
         }
-        Err(_) => Err(GameError::NoEditor),
+        Err(_) => Err(UtilityCommandError::NoEditor),
     }
 }
 
-fn command_stats<'a>(games: &'a Games, args: &'a [String]) -> Result<(), GameError<'a>> {
+fn command_stats<'a>(games: &Games, args: &'a [String]) -> Result<(), GameError<'a>> {
     if args.is_empty() {
         return Err(GameError::NoGameId);
     }
